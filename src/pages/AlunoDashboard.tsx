@@ -13,7 +13,6 @@ import {
   Trophy,
   Skull,
   Users,
-  HeartPulse,
   Rocket,
   MessageSquare,
   Calendar,
@@ -49,6 +48,7 @@ import { getFriendlySupabaseErrorMessage, withSchemaCacheRetry } from "@/lib/sup
 import { PlanExpiryBanner } from "@/components/subscription/PlanExpiryBanner";
 import { PLAN_LABEL, type SubscriptionPlan } from "@/lib/subscriptionPlans";
 import { useUserNotifications } from "@/hooks/useUserNotifications";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 
 interface AtividadeSessao {
   id: string;
@@ -144,7 +144,6 @@ const AlunoDashboardPage = () => {
 
 
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const [hasSentInsightNotification, setHasSentInsightNotification] = useState(false);
 
   const {
     notifications,
@@ -153,6 +152,15 @@ const AlunoDashboardPage = () => {
     markAsRead,
     markAllAsRead,
   } = useUserNotifications(user?.id ?? null);
+
+  const { permission: pushPermission, subscribeUser } = usePushNotifications();
+
+  // Tenta registrar o push automaticamente se a permissão já foi dada
+  useEffect(() => {
+    if (user && pushPermission === "granted") {
+      subscribeUser();
+    }
+  }, [user, pushPermission, subscribeUser]);
 
   useEffect(() => {
     if (!user) return;
@@ -372,16 +380,24 @@ const AlunoDashboardPage = () => {
   const [isPublishingShare, setIsPublishingShare] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined" || !("Notification" in window)) return;
+    if (!user || typeof window === "undefined" || !("Notification" in window)) return;
     if (!sessoesSemana.length) return;
-    if (hasSentInsightNotification) return;
+
+    // Evita spam no iOS: só notifica se a mensagem mudou E não notificamos ainda nesta "sessão" de dados.
+    // Usamos um hash simples da mensagem para saber se é um insight novo.
+    const insightHash = btoa(unescape(encodeURIComponent(insightMensagem))).slice(0, 16);
+    const storageKey = `biotreiner_insight_sent_${user.id}`;
+    const lastSentHash = window.localStorage.getItem(storageKey);
+
+    if (lastSentHash === insightHash) return;
 
     const sendNotification = () => {
       try {
         new Notification("Insight Nexfit", {
           body: insightMensagem,
+          icon: "/favicon-new.png"
         });
-        setHasSentInsightNotification(true);
+        window.localStorage.setItem(storageKey, insightHash);
       } catch (error) {
         console.error("Erro ao enviar notificação de insight:", error);
       }
@@ -396,7 +412,7 @@ const AlunoDashboardPage = () => {
         }
       });
     }
-  }, [insightMensagem, sessoesSemana.length, hasSentInsightNotification]);
+  }, [insightMensagem, sessoesSemana.length, user]);
 
   useEffect(() => {
     if (location.state && (location.state as any).showSharePrompt) {
@@ -870,15 +886,6 @@ const AlunoDashboardPage = () => {
               </DialogContent>
             </Dialog>
 
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-8 w-8"
-              aria-label="Conectividade"
-              onClick={() => navigate("/aluno/conectividade")}
-            >
-              <HeartPulse className="h-4 w-4" />
-            </Button>
 
             <Button
               size="icon"

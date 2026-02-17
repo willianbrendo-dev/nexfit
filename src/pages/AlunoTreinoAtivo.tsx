@@ -12,6 +12,9 @@ import { SecureVideo } from "@/components/ui/SecureVideo";
 import { FloatingNavIsland } from "@/components/navigation/FloatingNavIsland";
 import { cn } from "@/lib/utils";
 import { SpotifyButton } from "@/components/ui/SpotifyButton";
+import { useBluetoothHeartRate } from "@/hooks/useBluetoothHeartRate";
+import { useUserProfile } from "@/hooks/useUserProfile";
+import { Watch, BluetoothSearching, BluetoothConnected } from "lucide-react";
 
 const RAPIDAPI_KEY = import.meta.env.VITE_RAPIDAPI_KEY || "7abffdb721mshe6edf9169775d83p1212ffjsn4c407842489b";
 
@@ -51,6 +54,7 @@ const musculacaoActivityType: ActivityType = {
   category: "estacionario",
   usesGps: false,
   usesDistance: false,
+  metValue: 5.0,
 };
 
 const AlunoTreinoAtivoPage = () => {
@@ -76,6 +80,10 @@ const AlunoTreinoAtivoPage = () => {
   const [intensity, setIntensity] = useState("Moderada");
   const [bpm, setBpm] = useState(90);
   const [calories, setCalories] = useState(0);
+
+  // WEARABLE & PROFILE
+  const { heartRate: bleHeartRate, isConnected: isBleConnected, isConnecting: isBleConnecting, connect: connectBle, disconnect: disconnectBle } = useBluetoothHeartRate();
+  const { profile } = useUserProfile();
 
   const getStrengthStorageKey = (userId: string, sessionId: string) => `biotreiner_strength_${userId}_${sessionId}`;
 
@@ -146,11 +154,24 @@ const AlunoTreinoAtivoPage = () => {
 
     const interval = window.setInterval(() => {
       setElapsedSeconds((prev) => prev + 1);
-      setBpm((prev) => {
-        const variation = Math.round((Math.random() - 0.5) * 8);
-        return Math.min(185, Math.max(65, prev + variation));
-      });
-      setCalories((prev) => prev + 0.4);
+
+      // HEART RATE: Prioriza Wearable (BLE), se não usa simulação
+      if (isBleConnected && bleHeartRate) {
+        setBpm(bleHeartRate);
+      } else {
+        setBpm((prev) => {
+          const variation = Math.round((Math.random() - 0.5) * 8);
+          return Math.min(185, Math.max(65, prev + variation));
+        });
+      }
+
+      // CALORIES: MET * Weight * Time (Scientific Formula)
+      const weight = profile?.peso_kg || 75; // Default 75kg
+      const met = musculacaoActivityType.metValue;
+      const caloriesPerSecond = (met * weight * 3.5) / 12000;
+
+      setCalories((prev) => prev + caloriesPerSecond);
+
       setIntensity((prev) => {
         if (bpm > 155) return "Alta";
         if (bpm > 120) return "Moderada";
@@ -159,7 +180,7 @@ const AlunoTreinoAtivoPage = () => {
     }, 1000);
 
     return () => window.clearInterval(interval);
-  }, [isRunning, bpm]);
+  }, [isRunning, bpm, profile, isBleConnected, bleHeartRate]);
 
   // Persistência forte (para recover após refresh)
   useEffect(() => {
@@ -312,6 +333,20 @@ const AlunoTreinoAtivoPage = () => {
         </div>
         <div className="flex items-center gap-2">
           <SpotifyButton className={cn(isRunning && "animate-pulse border-[#1DB954]/40 shadow-[0_0_15px_rgba(29,185,84,0.2)]")} />
+
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={isBleConnected ? disconnectBle : connectBle}
+            className={cn(
+              "h-10 w-10 rounded-2xl transition-all active:scale-90",
+              isBleConnected ? "bg-primary/20 text-primary border border-primary/40 shadow-[0_0_15px_rgba(var(--primary-rgb),0.2)]" : "bg-white/5 text-muted-foreground border border-white/5",
+              isBleConnecting && "animate-pulse"
+            )}
+          >
+            {isBleConnecting ? <BluetoothSearching className="h-5 w-5" /> : isBleConnected ? <BluetoothConnected className="h-5 w-5" /> : <Watch className="h-5 w-5" />}
+          </Button>
+
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/5 bg-white/5 text-primary">
             <Activity className="h-5 w-5 animate-pulse" />
           </div>

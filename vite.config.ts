@@ -20,6 +20,9 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode === "development" && componentTagger(),
     VitePWAPlugin({
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.ts",
       registerType: "autoUpdate",
       injectRegister: "auto",
       includeAssets: ["favicon.ico", "favicon-new.png", "pwa-512x512.png", "pwa-maskable-512x512.png"],
@@ -35,20 +38,20 @@ export default defineConfig(({ mode }) => ({
         start_url: "/",
         icons: [
           {
-             // Keep PWA installed icon identical to the approved favicon.
-             src: "favicon-new.png",
+            // Keep PWA installed icon identical to the approved favicon.
+            src: "favicon-new.png",
             sizes: "192x192",
             type: "image/png",
             purpose: "any",
           },
           {
-             src: "favicon-new.png",
+            src: "favicon-new.png",
             sizes: "512x512",
             type: "image/png",
             purpose: "any",
           },
           {
-             src: "favicon-new.png",
+            src: "favicon-new.png",
             sizes: "512x512",
             type: "image/png",
             purpose: "maskable",

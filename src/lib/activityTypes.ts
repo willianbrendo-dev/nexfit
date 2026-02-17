@@ -6,6 +6,7 @@ export interface ActivityType {
   category: ActivityCategory;
   usesGps: boolean;
   usesDistance: boolean;
+  metValue: number; // Metabolic Equivalent of Task
 }
 
 export const ACTIVITY_TYPES: ActivityType[] = [
@@ -15,6 +16,7 @@ export const ACTIVITY_TYPES: ActivityType[] = [
     category: "deslocamento",
     usesGps: true,
     usesDistance: true,
+    metValue: 8.0,
   },
   {
     id: "caminhada",
@@ -22,6 +24,7 @@ export const ACTIVITY_TYPES: ActivityType[] = [
     category: "deslocamento",
     usesGps: true,
     usesDistance: true,
+    metValue: 3.5,
   },
   {
     id: "ciclismo",
@@ -29,6 +32,7 @@ export const ACTIVITY_TYPES: ActivityType[] = [
     category: "deslocamento",
     usesGps: true,
     usesDistance: true,
+    metValue: 7.5,
   },
   {
     id: "trilha",
@@ -36,6 +40,7 @@ export const ACTIVITY_TYPES: ActivityType[] = [
     category: "deslocamento",
     usesGps: true,
     usesDistance: true,
+    metValue: 6.0,
   },
   {
     id: "musculacao",
@@ -43,6 +48,7 @@ export const ACTIVITY_TYPES: ActivityType[] = [
     category: "estacionario",
     usesGps: false,
     usesDistance: false,
+    metValue: 5.0,
   },
   {
     id: "funcional",
@@ -50,6 +56,7 @@ export const ACTIVITY_TYPES: ActivityType[] = [
     category: "estacionario",
     usesGps: false,
     usesDistance: false,
+    metValue: 6.0,
   },
   {
     id: "crossfit",
@@ -57,6 +64,7 @@ export const ACTIVITY_TYPES: ActivityType[] = [
     category: "estacionario",
     usesGps: false,
     usesDistance: false,
+    metValue: 8.0,
   },
   {
     id: "yoga",
@@ -64,6 +72,7 @@ export const ACTIVITY_TYPES: ActivityType[] = [
     category: "estacionario",
     usesGps: false,
     usesDistance: false,
+    metValue: 2.5,
   },
   {
     id: "alongamento",
@@ -71,6 +80,7 @@ export const ACTIVITY_TYPES: ActivityType[] = [
     category: "estacionario",
     usesGps: false,
     usesDistance: false,
+    metValue: 2.3,
   },
 ];
 

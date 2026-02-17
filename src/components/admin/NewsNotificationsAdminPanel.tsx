@@ -115,6 +115,20 @@ export function NewsNotificationsAdminPanel() {
         description: `Notificação enviada para ${userIds.length} usuários.`,
       });
 
+      // 5. Trigger Real Push (Fire & Forget)
+      try {
+        await supabase.functions.invoke("push-service", {
+          body: {
+            segment, // Pass segment so push-service fetches everyone in that segment
+            title: title.trim(),
+            body: message.trim(),
+            url: link || '/'
+          }
+        });
+      } catch (pushErr) {
+        console.warn("[Admin] Push trigger failed:", pushErr);
+      }
+
       // Reset form
       setTitle("");
       setMessage("");

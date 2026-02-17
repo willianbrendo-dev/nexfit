@@ -15,6 +15,9 @@ import { haversineMeters } from "@/lib/geoDistance";
 import { cn } from "@/lib/utils";
 import { BackIconButton } from "@/components/navigation/BackIconButton";
 import { SpotifyButton } from "@/components/ui/SpotifyButton";
+import { useBluetoothHeartRate } from "@/hooks/useBluetoothHeartRate";
+import { useUserProfile } from "@/hooks/useUserProfile";
+import { Watch, BluetoothSearching, BluetoothConnected } from "lucide-react";
 
 const AlunoAtividadePage = () => {
   const navigate = useNavigate();
@@ -65,6 +68,13 @@ const AlunoAtividadePage = () => {
   const [isStationaryPaused, setIsStationaryPaused] = useState(false);
   // Acumula o tempo (em segundos) em que o usuário permanece abaixo dos limiares de movimento
   const stationaryTimeRef = useRef(0);
+
+  // WEARABLE & PROFILE
+  const { heartRate: bleHeartRate, isConnected: isBleConnected, isConnecting: isBleConnecting, connect: connectBle, disconnect: disconnectBle } = useBluetoothHeartRate();
+  const { profile } = useUserProfile();
+
+  // SLIDING WINDOW PACE (last 30 seconds of movement)
+  const [paceWindow, setPaceWindow] = useState<{ dist: number; time: number }[]>([]);
 
   const ACTIVITY_STORAGE_PREFIX = "biotreiner_activity_" as const;
 
@@ -201,7 +211,14 @@ const AlunoAtividadePage = () => {
 
       // Se houver um tipo de atividade no cache, tentamos reconstruir o objeto mínimo.
       if (cached.activityTypeId) {
-        setSelectedActivityType((prev) => prev ?? { id: cached.activityTypeId, name: cached.atividadeNome, category: "estacionario", usesGps: false, usesDistance: false });
+        setSelectedActivityType((prev) => prev ?? {
+          id: cached.activityTypeId,
+          name: cached.atividadeNome,
+          category: "estacionario",
+          usesGps: false,
+          usesDistance: false,
+          metValue: 5.0 // Fallback MET
+        });
       }
     }
   }, [user, sessaoIdInicial, atividadeInicial, navigate, toast]);
@@ -230,7 +247,10 @@ const AlunoAtividadePage = () => {
       setElapsedSeconds((cached.elapsedSeconds ?? 0) + (shouldCatchUp ? deltaSeconds : 0));
       setBpm(cached.bpm ?? 82);
       // Evita evoluir calorias no restore se não estávamos em movimento real.
-      setCalories((cached.calories ?? 0) + (shouldCatchUp && cached.movementState === "moving" ? deltaSeconds * 0.15 : 0));
+      const recoveryMet = cached.activityTypeId === 'corrida' ? 8.0 : cached.activityTypeId === 'caminhada' ? 3.5 : 5.0;
+      const recoveryWeight = 75; // Default fallback for catch-up
+      const recoveryCalPerSec = (recoveryMet * recoveryWeight * 3.5) / 12000;
+      setCalories((cached.calories ?? 0) + (shouldCatchUp && cached.movementState === "moving" ? deltaSeconds * recoveryCalPerSec : 0));
       setIntensity(cached.intensity ?? "Moderada");
       setSessionId(cached.sessionId);
 
@@ -250,6 +270,7 @@ const AlunoAtividadePage = () => {
             category: "estacionario",
             usesGps: false,
             usesDistance: false,
+            metValue: 5.0 // Fallback MET
           },
         );
       }
@@ -315,14 +336,29 @@ const AlunoAtividadePage = () => {
     if (isRunning) {
       interval = window.setInterval(() => {
         setElapsedSeconds((prev) => prev + 1);
+
         // Métricas que dependem de deslocamento real só evoluem quando movementState === 'moving'
-        if (movementState === "moving") {
-          setBpm((prev) => {
-            const variation = Math.round((Math.random() - 0.5) * 6);
-            const next = Math.min(180, Math.max(60, prev + variation));
-            return next;
-          });
-          setCalories((prev) => prev + 0.15);
+        if (movementState === "moving" || selectedActivityType?.category === "estacionario") {
+          // HEART RATE: Prioriza Wearable (BLE), se não usa simulação
+          if (isBleConnected && bleHeartRate) {
+            setBpm(bleHeartRate);
+          } else {
+            setBpm((prev) => {
+              const variation = Math.round((Math.random() - 0.5) * 6);
+              const next = Math.min(180, Math.max(60, prev + variation));
+              return next;
+            });
+          }
+
+          // CALORIES: MET * Weight * Time (Scientific Formula)
+          // formula: (MET * weight * 3.5) / 200 = calories/minute
+          // for simplicity with seconds: (MET * weight * 3.5) / 12000 = calories/second
+          const weight = profile?.peso_kg || 75; // Default 75kg
+          const met = selectedActivityType?.metValue || 5.0;
+          const caloriesPerSecond = (met * weight * 3.5) / 12000;
+
+          setCalories((prev) => prev + caloriesPerSecond);
+
           setIntensity(() => {
             if (bpm > 150) return "Alta";
             if (bpm > 120) return "Moderada";
@@ -335,7 +371,7 @@ const AlunoAtividadePage = () => {
     return () => {
       if (interval) window.clearInterval(interval);
     };
-  }, [isRunning, bpm, movementState]);
+  }, [isRunning, bpm, movementState, selectedActivityType, profile, isBleConnected, bleHeartRate]);
 
   // Coleta de GPS em tempo real (somente para atividades com GPS)
   useEffect(() => {
@@ -431,6 +467,16 @@ const AlunoAtividadePage = () => {
         if (canAccumulate) {
           const deltaKm = deltaDistMeters / 1000;
           setDistanceKm((current) => current + deltaKm);
+
+          // Update sliding window (30 seconds approx)
+          setPaceWindow((prev) => {
+            const next = [...prev, { dist: deltaKm, time: deltaTimeSeconds }];
+            // Keep roughly 30s of window
+            while (next.length > 0 && next.reduce((acc, p) => acc + p.time, 0) > 30) {
+              next.shift();
+            }
+            return next;
+          });
 
           // Route points used for saving summary; store only when we truly accumulated distance.
           setGpsPoints((prev) => [
@@ -709,15 +755,20 @@ const AlunoAtividadePage = () => {
   // Calcula o ritmo médio (pace) em min/km com base na distância de GPS,
   // mas apenas quando há movimento real (evita pace variando parado/sinal fraco)
   // PWA rule: show pace only after a minimum distance per modality.
-  const minDistanceBeforePaceKm = useMemo(() => {
-    if (mode === "corrida") return 0.05;
-    if (mode === "caminhada") return 0.07;
-    return 0.05;
-  }, [mode]);
-  const paceMinutesPerKm =
-    usesGps && distanceKm >= minDistanceBeforePaceKm && movementState === "moving" && !isStationaryPaused
-      ? (elapsedSeconds / 60) / distanceKm
-      : null;
+  // CALCULA PACE USANDO JANELA DESLIZANTE PARA MAIOR PRECISÃO INSTANTÂNEA
+  const paceMinutesPerKm = useMemo(() => {
+    if (!usesGps || movementState !== "moving" || isStationaryPaused) return null;
+
+    // We need at least some samples for instability
+    if (paceWindow.length < 3) return null;
+
+    const totalDistWindow = paceWindow.reduce((acc, p) => acc + p.dist, 0);
+    const totalTimeWindow = paceWindow.reduce((acc, p) => acc + p.time, 0);
+
+    if (totalDistWindow < 0.005) return null; // 5 meters minimum to compute pace
+
+    return (totalTimeWindow / 60) / totalDistWindow;
+  }, [paceWindow, usesGps, movementState, isStationaryPaused]);
 
   const formatPace = (pace: number | null) => {
     if (!pace || !Number.isFinite(pace)) return "--";
@@ -763,6 +814,19 @@ const AlunoAtividadePage = () => {
             )}
 
             <SpotifyButton className={cn(isRunning && "animate-pulse border-[#1DB954]/40 shadow-[0_0_15px_rgba(29,185,84,0.2)]")} />
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={isBleConnected ? disconnectBle : connectBle}
+              className={cn(
+                "h-10 w-10 rounded-2xl transition-all active:scale-90",
+                isBleConnected ? "bg-primary/20 text-primary border border-primary/40 shadow-[0_0_15px_rgba(var(--primary-rgb),0.2)]" : "bg-white/5 text-muted-foreground border border-white/5",
+                isBleConnecting && "animate-pulse"
+              )}
+            >
+              {isBleConnecting ? <BluetoothSearching className="h-5 w-5" /> : isBleConnected ? <BluetoothConnected className="h-5 w-5" /> : <Watch className="h-5 w-5" />}
+            </Button>
 
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/5 bg-white/5 text-primary">
               <Activity className={cn("h-5 w-5", isRunning && "animate-pulse")} />
