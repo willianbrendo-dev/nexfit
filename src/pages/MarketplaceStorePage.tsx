@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { BackIconButton } from "@/components/navigation/BackIconButton";
 import { FloatingNavIsland } from "@/components/navigation/FloatingNavIsland";
-import { ShoppingCart, Plus, Eye } from "lucide-react";
+import { ShoppingCart, Plus, Eye, Package } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { ProductImageCarousel } from "@/components/marketplace/ProductImageCarousel";
@@ -227,18 +227,30 @@ export default function MarketplaceStorePage() {
         <div className="absolute left-0 right-0 top-0 flex items-center justify-between p-4 px-6">
           <BackIconButton to={`/marketplace/categoria/${store.store_type}`} className="bg-background/20 backdrop-blur-md border-white/10 hover:bg-background/40" />
 
-          <button
-            type="button"
-            onClick={() => navigate(`/marketplace/loja/${storeId}/carrinho`)}
-            className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-primary shadow-2xl shadow-primary/40 transition-transform active:scale-95"
-          >
-            <ShoppingCart className="h-5 w-5 text-black" />
-            {cartCount > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-5 w-5 animate-bounce items-center justify-center rounded-full bg-white text-[10px] font-bold text-black ring-2 ring-primary">
-                {cartCount}
-              </span>
-            )}
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Orders Button */}
+            <button
+              type="button"
+              onClick={() => navigate("/marketplace/pedidos")}
+              className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-background/20 backdrop-blur-md border border-white/10 transition-all hover:bg-background/40 active:scale-95"
+            >
+              <Package className="h-5 w-5 text-white" />
+            </button>
+
+            {/* Cart Button */}
+            <button
+              type="button"
+              onClick={() => navigate(`/marketplace/loja/${storeId}/carrinho`)}
+              className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-primary shadow-2xl shadow-primary/40 transition-transform active:scale-95"
+            >
+              <ShoppingCart className="h-5 w-5 text-black" />
+              {cartCount > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-5 w-5 animate-bounce items-center justify-center rounded-full bg-white text-[10px] font-bold text-black ring-2 ring-primary">
+                  {cartCount}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 

@@ -18,7 +18,8 @@ import { FloatingNavIsland } from "@/components/navigation/FloatingNavIsland";
 import { cn } from "@/lib/utils";
 
 const schema = z.object({
-  nome: z.string().trim().min(2, "Informe seu nome completo"),
+  nome: z.string().trim().min(2, "Informe seu nome"),
+  sobrenome: z.string().trim().optional(),
   displayName: z.string().trim().min(2, "Informe um nome de exibição"),
   dataNascimento: z.string().optional(),
   genero: z.string().optional(),
@@ -52,6 +53,7 @@ const AlunoEditarPerfilPage = () => {
     resolver: zodResolver(schema),
     defaultValues: {
       nome: "",
+      sobrenome: "",
       displayName: "",
       dataNascimento: "",
       genero: "",
@@ -83,8 +85,12 @@ const AlunoEditarPerfilPage = () => {
       }
 
       if (data) {
+        const [firstName, ...rest] = (data.nome ?? "").split(" ");
+        const lastName = rest.join(" ");
+
         form.reset({
-          nome: data.nome ?? "",
+          nome: firstName,
+          sobrenome: lastName,
           displayName: data.display_name ?? "",
           dataNascimento: data.data_nascimento ?? "",
           genero: data.genero ?? "",
@@ -207,11 +213,13 @@ const AlunoEditarPerfilPage = () => {
         return;
       }
 
+      const fullName = values.sobrenome ? `${values.nome} ${values.sobrenome}`.trim() : values.nome.trim();
+
       const { error } = await withTimeout(
         supabase
           .from("profiles")
           .update({
-            nome: values.nome,
+            nome: fullName,
             display_name: values.displayName,
             data_nascimento: values.dataNascimento || null,
             genero: values.genero || null,
@@ -229,7 +237,7 @@ const AlunoEditarPerfilPage = () => {
       // Sync Auth metadata for session consistency
       await supabase.auth.updateUser({
         data: {
-          full_name: values.nome,
+          full_name: fullName,
           display_name: values.displayName,
         }
       });
@@ -312,26 +320,48 @@ const AlunoEditarPerfilPage = () => {
             </div>
 
             <div className="grid gap-4">
-              <FormField
-                control={form.control}
-                name="nome"
-                render={({ field }) => (
-                  <FormItem className="space-y-1.5">
-                    <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Nome Completo</FormLabel>
-                    <FormControl>
-                      <div className="relative group">
-                        <User className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-primary transition-colors group-focus-within:text-white" />
-                        <Input
-                          placeholder="Como está no seu documento"
-                          className="h-14 pl-12 rounded-2xl border-white/10 bg-white/5 focus:bg-white/10 focus:border-primary/50 transition-all font-medium"
-                          {...field}
-                        />
-                      </div>
-                    </FormControl>
-                    <FormMessage className="text-[10px] font-bold uppercase tracking-tight ml-1" />
-                  </FormItem>
-                )}
-              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="nome"
+                  render={({ field }) => (
+                    <FormItem className="space-y-1.5">
+                      <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Nome</FormLabel>
+                      <FormControl>
+                        <div className="relative group">
+                          <User className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-primary transition-colors group-focus-within:text-white" />
+                          <Input
+                            placeholder="Ex: João"
+                            className="h-14 pl-12 rounded-2xl border-white/10 bg-white/5 focus:bg-white/10 focus:border-primary/50 transition-all font-medium"
+                            {...field}
+                          />
+                        </div>
+                      </FormControl>
+                      <FormMessage className="text-[10px] font-bold uppercase tracking-tight ml-1" />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="sobrenome"
+                  render={({ field }) => (
+                    <FormItem className="space-y-1.5">
+                      <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Sobrenome</FormLabel>
+                      <FormControl>
+                        <div className="relative group">
+                          <Input
+                            placeholder="Opcional"
+                            className="h-14 px-4 rounded-2xl border-white/10 bg-white/5 focus:bg-white/10 focus:border-primary/50 transition-all font-medium"
+                            {...field}
+                          />
+                        </div>
+                      </FormControl>
+                      <FormMessage className="text-[10px] font-bold uppercase tracking-tight ml-1" />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               <FormField
                 control={form.control}

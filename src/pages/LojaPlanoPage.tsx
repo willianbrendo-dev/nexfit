@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Copy, CreditCard, Crown, Upload, QrCode, CheckCircle2, Package, TrendingUp, Sparkles, ShoppingBag } from "lucide-react";
+import { Copy, CreditCard, Crown, QrCode, CheckCircle2, Package, TrendingUp, ShoppingBag, Loader2, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -15,9 +15,7 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { buildPixPayload } from "@/lib/pix";
-import * as QRCodeLib from "qrcode";
+import { createPixPayment, checkPixPaymentStatus, getUserPixPayments } from "@/lib/pixPaymentTracking";
 
 type StoreBillingInfo = {
     id: string;
@@ -31,15 +29,7 @@ type PixConfig = {
     receiver_name: string | null;
 };
 
-type PagamentoRow = {
-    id: string;
-    status: "pending" | "approved" | "rejected";
-    desired_plan: string;
-    requested_at: string;
-    rejection_reason: string | null;
-};
-
-const PLAN_PRICE_CENTS = 3990; // R$ 39,90
+const PLAN_PRICE = 39.90; // R$ 39,90
 
 export default function LojaPlanoPage() {
     const { user } = useAuth();
@@ -47,17 +37,12 @@ export default function LojaPlanoPage() {
 
     const [loading, setLoading] = useState(true);
     const [store, setStore] = useState<StoreBillingInfo | null>(null);
-    const [pix, setPix] = useState<PixConfig | null>(null);
-    const [lastRequest, setLastRequest] = useState<PagamentoRow | null>(null);
+    const [pixData, setPixData] = useState<any>(null);
+    const [activePayment, setActivePayment] = useState<any>(null);
 
     const [isOpen, setIsOpen] = useState(false);
-    const [receiptFile, setReceiptFile] = useState<File | null>(null);
-    const [submitting, setSubmitting] = useState(false);
-
-    // Dynamic QR code
-    const [pixPayload, setPixPayload] = useState<string | null>(null);
-    const [pixQrDataUrl, setPixQrDataUrl] = useState<string | null>(null);
-    const [copied, setCopied] = useState(false);
+    const [verifying, setVerifying] = useState(false);
+    const [paymentStatus, setPaymentStatus] = useState<"pending" | "paid" | "expired">("pending");
 
     useEffect(() => {
         document.title = "Meu Plano - Nexfit Lojista";
@@ -76,25 +61,19 @@ export default function LojaPlanoPage() {
             if (storeData) {
                 setStore(storeData as StoreBillingInfo);
 
-                const { data: payments } = await (supabase as any)
-                    .from("pagamentos")
-                    .select("id, status, desired_plan, requested_at, rejection_reason")
-                    .eq("store_id", storeData.id)
-                    .order("requested_at", { ascending: false });
-
-                const rows = (payments as PagamentoRow[] | null) ?? [];
-                setLastRequest(rows[0] ?? null);
+                // Check for existing pending payments
+                const payments = await getUserPixPayments(user.id, "store_plan");
+                const pending = payments?.find(p => p.status === "pending");
+                if (pending) {
+                    setActivePayment(pending);
+                    setPixData({
+                        paymentId: pending.id,
+                        pixPayload: pending.pix_payload,
+                        pixQrCode: pending.pix_qr_code,
+                        expiresAt: new Date(pending.expires_at)
+                    });
+                }
             }
-
-            const { data: pixData } = await (supabase as any)
-                .from("pix_configs")
-                .select("pix_key, receiver_name")
-                .is("marketplace_store_id", null)
-                .order("updated_at", { ascending: false })
-                .limit(1)
-                .maybeSingle();
-
-            setPix(pixData as PixConfig ?? null);
         } catch (error) {
             console.error("Erro ao carregar dados do plano:", error);
         } finally {
@@ -104,80 +83,97 @@ export default function LojaPlanoPage() {
 
     useEffect(() => { void loadData(); }, [loadData]);
 
-    useEffect(() => {
-        if (!pix?.pix_key || !isOpen) {
-            setPixPayload(null);
-            setPixQrDataUrl(null);
+    const handleInitiateUpgrade = async () => {
+        if (!user || !store) return;
+
+        console.log("[LojaPlano] Iniciando upgrade para loja:", store.id);
+
+        // If already have a pending payment, just show it
+        if (pixData) {
+            console.log("[LojaPlano] Pagamento pendente já existe:", pixData.paymentId);
+            setIsOpen(true);
             return;
         }
 
-        const payload = buildPixPayload({
-            pixKey: pix.pix_key,
-            receiverName: pix.receiver_name || "NEXFIT",
-            amount: PLAN_PRICE_CENTS / 100,
-            description: `Upgrade Nexfit Lojista PRO`,
-            city: "BRASIL",
-        });
+        setVerifying(true);
+        try {
+            // Get Admin PIX Config
+            const { data: adminPix } = await supabase
+                .from("pix_configs")
+                .select("pix_key, receiver_name")
+                .is("marketplace_store_id", null)
+                .order("updated_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
 
-        setPixPayload(payload);
-        QRCodeLib.toDataURL(payload, { width: 256 }).then(setPixQrDataUrl).catch(() => setPixQrDataUrl(null));
-    }, [pix, isOpen]);
+            if (!adminPix?.pix_key) throw new Error("Configuração PIX não encontrada. Contate o admin.");
+
+            console.log("[LojaPlano] Criando novo pagamento PIX...");
+            const result = await createPixPayment({
+                userId: user.id,
+                amount: PLAN_PRICE,
+                paymentType: "store_plan",
+                referenceId: store.id,
+                pixKey: adminPix.pix_key,
+                receiverName: adminPix.receiver_name || "NEXFIT",
+                description: `Upgrade PRO - ${store.nome}`
+            });
+
+            console.log("[LojaPlano] Pagamento criado com sucesso:", result.paymentId);
+            setPixData(result);
+            setIsOpen(true);
+        } catch (error: any) {
+            console.error("[LojaPlano] Erro ao gerar PIX:", error);
+            toast({ title: "Erro ao gerar PIX", description: error.message, variant: "destructive" });
+        } finally {
+            setVerifying(false);
+        }
+    };
+
+    const handleCheckPayment = async () => {
+        if (!pixData) return;
+        setVerifying(true);
+        console.log("[LojaPlano] Verificando status do pagamento:", pixData.paymentId);
+        try {
+            const status = await checkPixPaymentStatus(pixData.paymentId);
+            console.log("[LojaPlano] Status retornado:", status);
+            if (status === "paid") {
+                setPaymentStatus("paid");
+                toast({ title: "Pagamento confirmado!", description: "Sua loja agora é PRO!" });
+                setTimeout(() => {
+                    setIsOpen(false);
+                    void loadData();
+                }, 3000);
+            } else if (status === "expired") {
+                setPaymentStatus("expired");
+                setPixData(null); // Allow regenerate
+                toast({ title: "Pagamento expirado", description: "O código PIX expirou. Gere um novo." });
+            } else {
+                toast({ title: "Aguardando pagamento...", description: "O sistema ainda não identificou seu PIX." });
+            }
+        } catch (error) {
+            console.error("[LojaPlano] Erro ao verificar pagamento:", error);
+        } finally {
+            setVerifying(false);
+        }
+    };
 
     const handleCopyPix = useCallback(async () => {
-        if (!pixPayload) return;
+        if (!pixData?.pixPayload) return;
         try {
-            await navigator.clipboard.writeText(pixPayload);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
+            await navigator.clipboard.writeText(pixData.pixPayload);
             toast({ title: "Código Pix copiado!" });
         } catch {
             toast({ title: "Erro ao copiar", variant: "destructive" });
         }
-    }, [pixPayload, toast]);
-
-    const handleSubmitRequest = async () => {
-        if (!user || !store || !receiptFile) return;
-        setSubmitting(true);
-        try {
-            const safeName = receiptFile.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-            const path = `lojistas/${store.id}/${Date.now()}-${safeName}`;
-
-            const { error: uploadError } = await supabase.storage
-                .from("payment_receipts")
-                .upload(path, receiptFile);
-
-            if (uploadError) throw uploadError;
-
-            const { error: insertError } = await (supabase as any)
-                .from("pagamentos")
-                .insert({
-                    user_id: user.id,
-                    store_id: store.id,
-                    provider: "pix",
-                    desired_plan: "PRO",
-                    receipt_path: path,
-                    status: "pending",
-                    metadata: { filename: receiptFile.name, pix_payload: pixPayload },
-                });
-
-            if (insertError) throw insertError;
-
-            toast({ title: "Comprovante enviado!", description: "Analisaremos seu pagamento em breve." });
-            setIsOpen(false);
-            void loadData();
-        } catch (error: any) {
-            toast({ title: "Erro ao enviar", description: error.message, variant: "destructive" });
-        } finally {
-            setSubmitting(false);
-        }
-    };
+    }, [pixData, toast]);
 
     const isPro = store?.subscription_plan === "PRO";
 
     if (loading) {
         return (
             <main className="flex min-h-screen items-center justify-center bg-black">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </main>
         );
     }
@@ -225,93 +221,101 @@ export default function LojaPlanoPage() {
                             </div>
                         </div>
 
-                        {lastRequest?.status === "pending" && (
-                            <div className="rounded-2xl border border-primary/20 bg-primary/10 p-4 flex items-center gap-3">
-                                <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                                <p className="text-xs font-bold text-primary uppercase tracking-wide">
-                                    Upgrade para PRO em análise
-                                </p>
-                            </div>
-                        )}
-
-                        {!isPro && lastRequest?.status !== "pending" && (
-                            <Dialog open={isOpen} onOpenChange={setIsOpen}>
-                                <DialogTrigger asChild>
-                                    <Button className="w-full h-14 rounded-2xl bg-primary text-black font-black uppercase tracking-widest text-[11px] hover:bg-primary/90 shadow-[0_0_20px_rgba(86,255,2,0.2)] hover:shadow-[0_0_30px_rgba(86,255,2,0.4)] transition-all">
-                                        Mudar para o Plano PRO - R$ 39,90
-                                    </Button>
-                                </DialogTrigger>
-                                <DialogContent className="border-white/10 bg-black/90 backdrop-blur-xl text-white sm:max-w-md rounded-[32px]">
-                                    <DialogHeader>
-                                        <DialogTitle className="text-xl font-black uppercase tracking-tight text-white">Upgrade Nexfit Lojista PRO</DialogTitle>
-                                        <DialogDescription className="text-zinc-400">
-                                            Libere Controle de Estoque Avançado, Relatórios Financeiros e Recuperação de Carrinhos.
-                                        </DialogDescription>
-                                    </DialogHeader>
-                                    <div className="space-y-4 py-4 text-sm text-zinc-300">
-                                        <div className="rounded-2xl bg-white/5 p-4 space-y-3 border border-white/10">
-                                            <div className="flex items-center justify-between font-bold text-white">
-                                                <span className="uppercase tracking-wide text-xs">Assinatura Mensal</span>
-                                                <span className="text-primary text-base">R$ 39,90</span>
-                                            </div>
-                                            <div className="space-y-2 text-xs text-zinc-400">
-                                                <div className="flex items-center gap-2">
-                                                    <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
-                                                    <span>Controle de Estoque Avançado</span>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
-                                                    <span>Relatórios Financeiros Consolidados</span>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
-                                                    <span>Recuperação de Carrinhos Abandonados</span>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
-                                                    <span>Suporte Prioritário</span>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {pixQrDataUrl && (
-                                            <div className="text-center space-y-3 p-4 rounded-2xl bg-white/[0.02] border border-white/5">
-                                                <Label className="uppercase tracking-widest text-[10px] text-zinc-500">Pague via PIX</Label>
-                                                <div className="mx-auto h-40 w-40 rounded-xl bg-white p-2">
-                                                    <img src={pixQrDataUrl} alt="QR Code" className="h-full w-full" />
-                                                </div>
-                                                <Button variant="outline" size="sm" className="w-full gap-2 rounded-xl h-10 border-white/10 bg-white/5 hover:bg-white/10 text-white" onClick={handleCopyPix}>
-                                                    {copied ? <CheckCircle2 className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
-                                                    Copiar Código PIX
-                                                </Button>
-                                            </div>
-                                        )}
-
-                                        <div className="space-y-2">
-                                            <Label htmlFor="receipt" className="uppercase tracking-widest text-[10px] text-zinc-500">Anexar Comprovante</Label>
-                                            <div className="relative">
-                                                <Upload className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
-                                                <Input
-                                                    id="receipt"
-                                                    type="file"
-                                                    accept="image/*,.pdf"
-                                                    className="h-12 pl-10 rounded-xl border-white/10 bg-white/5 file:text-white text-zinc-300"
-                                                    onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)}
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <DialogFooter>
-                                        <Button variant="ghost" className="rounded-xl h-12 text-zinc-400 hover:text-white" onClick={() => setIsOpen(false)}>Cancelar</Button>
-                                        <Button className="rounded-xl h-12 bg-primary text-black font-bold uppercase tracking-widest hover:bg-primary/90" onClick={handleSubmitRequest} disabled={!receiptFile || submitting}>
-                                            {submitting ? "Enviando..." : "Confirmar Pagamento"}
-                                        </Button>
-                                    </DialogFooter>
-                                </DialogContent>
-                            </Dialog>
+                        {!isPro && (
+                            <Button
+                                onClick={handleInitiateUpgrade}
+                                disabled={verifying}
+                                className="w-full h-14 rounded-2xl bg-primary text-black font-black uppercase tracking-widest text-[11px] hover:bg-primary/90 shadow-[0_0_20px_rgba(86,255,2,0.2)] hover:shadow-[0_0_30px_rgba(86,255,2,0.4)] transition-all"
+                            >
+                                {verifying ? <Loader2 className="animate-spin h-5 w-5" /> : `Mudar para o Plano PRO - R$ ${PLAN_PRICE.toFixed(2)}`}
+                            </Button>
                         )}
                     </div>
                 </div>
+
+
+
+                <Dialog open={isOpen} onOpenChange={setIsOpen}>
+                    <DialogContent className="!grid-cols-1 !gap-0 !p-0 border-white/10 bg-[#0a0a0a] text-white sm:max-w-md w-[95%] rounded-[32px] shadow-2xl ring-1 ring-white/10">
+                        <div className="flex flex-col items-center space-y-6 w-full p-8">
+                            {paymentStatus === "paid" ? (
+                                <>
+                                    <div className="h-24 w-24 rounded-full bg-primary/20 flex items-center justify-center">
+                                        <CheckCircle2 className="h-12 w-12 text-primary" />
+                                    </div>
+                                    <div className="space-y-2 text-center">
+                                        <h2 className="text-2xl font-black uppercase italic tracking-tighter">Upgrade Confirmado!</h2>
+                                        <p className="text-zinc-400 text-sm leading-relaxed">
+                                            Parabéns! Sua loja agora tem acesso a todos os recursos PRO. Aproveite!
+                                        </p>
+                                    </div>
+                                    <Button onClick={() => setIsOpen(false)} className="w-full h-12 bg-primary text-black font-black uppercase tracking-wider rounded-2xl">Acessar Recursos PRO</Button>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="text-center space-y-2">
+                                        <div className="flex items-center justify-center gap-2">
+                                            <Sparkles className="h-5 w-5 text-primary" />
+                                            <h2 className="text-xl font-black uppercase tracking-tight text-white">Upgrade Nexfit PRO</h2>
+                                        </div>
+                                        <p className="text-zinc-400 text-xs font-medium">
+                                            Escaneie o QR Code abaixo para ativar seu plano instantaneamente.
+                                        </p>
+                                    </div>
+
+                                    {/* QR Code Container - Fixed size, no positioning tricks */}
+                                    <div className="w-48 h-48 rounded-2xl bg-white p-3 shadow-xl flex items-center justify-center">
+                                        {pixData?.pixQrCode ? (
+                                            <img
+                                                src={pixData.pixQrCode}
+                                                alt="QR Code"
+                                                className="w-full h-full object-contain"
+                                                onLoad={() => console.log("[LojaPlano] Imagem do QR Code carregada")}
+                                                onError={(e) => console.error("[LojaPlano] Erro ao carregar imagem do QR Code", e)}
+                                            />
+                                        ) : (
+                                            <div className="flex flex-col items-center gap-3">
+                                                <Loader2 className="h-8 w-8 animate-spin text-black" />
+                                                <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-tighter">Gerando código...</p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* PIX Copy & Paste */}
+                                    <div className="w-full bg-white/5 border border-white/10 rounded-2xl p-4">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-2">Pix Copia e Cola</p>
+                                        <div className="flex items-center gap-3">
+                                            <p className="text-[11px] text-zinc-400 truncate flex-1 font-mono tracking-tight">
+                                                {pixData?.pixPayload || "Carregando payload..."}
+                                            </p>
+                                            <Button size="icon" variant="ghost" className="h-10 w-10 text-primary hover:bg-primary/10 shrink-0" onClick={handleCopyPix}>
+                                                <Copy className="h-5 w-5" />
+                                            </Button>
+                                        </div>
+                                    </div>
+
+                                    {/* Payment Check Button */}
+                                    <Button
+                                        onClick={handleCheckPayment}
+                                        disabled={verifying}
+                                        className="w-full h-14 bg-primary text-black font-black uppercase tracking-widest text-[11px] rounded-2xl shadow-[0_0_20px_rgba(86,255,2,0.1)] hover:bg-primary/90"
+                                    >
+                                        {verifying ? <Loader2 className="animate-spin h-5 w-5 mr-3" /> : <QrCode className="h-5 w-5 mr-3" />}
+                                        Já realizei o pagamento
+                                    </Button>
+
+                                    {/* Auto-activation notice */}
+                                    <div className="flex items-center gap-2 px-6 py-3 rounded-full bg-white/[0.03] border border-white/5">
+                                        <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                                        <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">
+                                            Ativação automática após confirmação
+                                        </p>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </DialogContent>
+                </Dialog>
 
                 {/* Benefits Cards */}
                 <div className="grid gap-3">

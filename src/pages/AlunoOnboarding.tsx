@@ -29,7 +29,8 @@ import { BackIconButton } from "@/components/navigation/BackIconButton";
 import { cn } from "@/lib/utils";
 
 const onboardingSchema = z.object({
-  nome: z.string().min(2, "Informe pelo menos 2 caracteres"),
+  nome: z.string().min(2, "Informe seu nome"),
+  sobrenome: z.string().optional(),
   genero: z.enum(["masculino", "feminino", "outro"], {
     errorMap: () => ({ message: "Selecione um gênero" }),
   }),
@@ -127,6 +128,7 @@ const AlunoOnboardingPage = () => {
     resolver: zodResolver(onboardingSchema),
     defaultValues: {
       nome: "",
+      sobrenome: "",
       genero: undefined,
       whatsapp: "",
       altura_cm: "",
@@ -179,6 +181,7 @@ const AlunoOnboardingPage = () => {
       const snapshot: Partial<OnboardingFormValues> & { currentStep: number } = {
         currentStep,
         nome: watch("nome"),
+        sobrenome: watch("sobrenome"),
         genero: watch("genero"),
         whatsapp: watch("whatsapp"),
         altura_cm: watch("altura_cm"),
@@ -248,9 +251,11 @@ const AlunoOnboardingPage = () => {
         return;
       }
 
+      const fullName = values.sobrenome ? `${values.nome} ${values.sobrenome}`.trim() : values.nome.trim();
+
       const payload = {
-        display_name: values.nome,
-        nome: values.nome,
+        display_name: values.nome.trim(),
+        nome: fullName,
         genero: values.genero,
         whatsapp: values.whatsapp,
         altura_cm: altura,
@@ -306,6 +311,7 @@ const AlunoOnboardingPage = () => {
   const getFirstInvalidStep = () => {
     const v = {
       nome: (watch("nome") ?? "").trim(),
+      sobrenome: (watch("sobrenome") ?? "").trim(),
       genero: watch("genero"),
       altura_cm: watch("altura_cm"),
       peso_kg: watch("peso_kg"),
@@ -408,18 +414,32 @@ const AlunoOnboardingPage = () => {
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="space-y-4">
-              <div className="relative group">
-                <Label htmlFor="nome" className="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-2 block ml-1">Identificação</Label>
-                <div className="relative">
-                  <User className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-primary" />
-                  <Input
-                    id="nome"
-                    placeholder="Como podemos te chamar?"
-                    className="h-14 pl-12 rounded-2xl border-white/10 bg-white/5 focus:bg-white/10 transition-all font-medium"
-                    {...register("nome")}
-                  />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="relative group">
+                  <Label htmlFor="nome" className="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-2 block ml-1">Nome</Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary" />
+                    <Input
+                      id="nome"
+                      placeholder="Nome"
+                      className="h-14 pl-10 rounded-2xl border-white/10 bg-white/5 focus:bg-white/10 transition-all font-medium"
+                      {...register("nome")}
+                    />
+                  </div>
+                  {errors.nome && <p className="mt-1.5 text-[10px] font-bold text-destructive flex items-center gap-1 uppercase tracking-tight ml-1">{errors.nome.message}</p>}
                 </div>
-                {errors.nome && <p className="mt-1.5 text-[10px] font-bold text-destructive flex items-center gap-1 uppercase tracking-tight ml-1">{errors.nome.message}</p>}
+
+                <div className="relative group">
+                  <Label htmlFor="sobrenome" className="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-2 block ml-1">Sobrenome</Label>
+                  <div className="relative">
+                    <Input
+                      id="sobrenome"
+                      placeholder="Opcional"
+                      className="h-14 px-4 rounded-2xl border-white/10 bg-white/5 focus:bg-white/10 transition-all font-medium"
+                      {...register("sobrenome")}
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-3">

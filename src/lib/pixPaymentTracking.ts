@@ -1,9 +1,9 @@
 // Universal PIX Payment Tracking System
 // Centralized service for all PIX payments in the app
+// Now integrated with Mercado Pago for automatic payment processing
 
 import { supabase } from "@/integrations/supabase/client";
-import { buildPixPayload } from "./pix";
-import QRCode from "qrcode";
+import { createMercadoPagoPayment } from "./mercadoPagoService";
 
 export type PixPaymentType =
     | "lp_unlock"           // Professional LP unlock (R$ 89,90)
@@ -17,21 +17,24 @@ export interface CreatePixPaymentParams {
     amount: number;
     paymentType: PixPaymentType;
     referenceId?: string; // ID of related entity (professional_id, order_id, etc.)
-    pixKey: string;
-    receiverName: string;
     description?: string;
     expiresInHours?: number; // Default: 24 hours
+    desiredPlan?: string; // For subscription payments
+    paymentMethod?: "pix" | "card"; // Optional override
+    userEmail?: string; // Email for the payer
+    userName?: string; // Full name for the payer
 }
 
 export interface PixPaymentResult {
     paymentId: string;
     pixPayload: string;
-    pixQrCode: string; // Base64 data URL
+    pixQrCode: string; // Base64 or URL
     expiresAt: Date;
+    paymentUrl?: string; // Redirect URL for cards or ticket
 }
 
 /**
- * Creates a new PIX payment and tracks it in the database
+ * Creates a new PIX/Card payment using Mercado Pago
  */
 export async function createPixPayment(
     params: CreatePixPaymentParams
@@ -41,52 +44,94 @@ export async function createPixPayment(
         amount,
         paymentType,
         referenceId,
-        pixKey,
-        receiverName,
         description,
-        expiresInHours = 24,
+        desiredPlan,
+        paymentMethod = "pix",
+        userEmail
     } = params;
 
-    // Generate PIX payload
-    const pixPayload = buildPixPayload({
-        pixKey,
-        receiverName,
-        amount,
-        description,
-    });
+    console.log("[PixTracking] Creating payment:", { paymentType, amount });
 
-    // Generate QR code
-    const pixQrCode = await QRCode.toDataURL(pixPayload, { width: 256 });
+    // ONLY use Mercado Pago for subscriptions as requested by priorities
+    if (paymentType === 'subscription' || (paymentMethod === 'card' && paymentType === 'subscription')) {
+        try {
+            const [firstName = "Cliente", lastName = "Nexfit"] = (params.userName || "").split(" ");
+            const email = params.userEmail || "atendimento@nexfit.com";
 
-    // Calculate expiration
-    const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + expiresInHours);
+            // Create payment via Mercado Pago Service
+            const result = await createMercadoPagoPayment({
+                transaction_amount: amount,
+                description: description || `Pagamento Nexfit - ${paymentType}`,
+                payment_method_id: paymentMethod,
+                payer: {
+                    email,
+                    first_name: firstName,
+                    last_name: lastName,
+                },
+                metadata: {
+                    payment_type: paymentType,
+                    reference_id: referenceId || null,
+                    user_id: userId,
+                    desired_plan: desiredPlan,
+                }
+            });
 
-    // Insert payment record
-    const { data, error } = await supabase
-        .from("pix_payments")
-        .insert({
-            user_id: userId,
-            amount,
-            pix_payload: pixPayload,
-            pix_qr_code: pixQrCode,
-            payment_type: paymentType,
-            reference_id: referenceId || null,
-            status: "pending",
-            expires_at: expiresAt.toISOString(),
-        })
-        .select("id")
-        .single();
+            if (!result.success || !result.payment_id) {
+                throw new Error(result.error || "Erro ao criar pagamento no Mercado Pago");
+            }
 
-    if (error) throw error;
+            // Expiration is handled by Edge Function (24h default)
+            const expiresAt = new Date();
+            expiresAt.setHours(expiresAt.getHours() + 24);
 
-    return {
-        paymentId: data.id,
-        pixPayload,
-        pixQrCode,
-        expiresAt,
-    };
+            return {
+                paymentId: result.payment_id,
+                pixPayload: result.qr_code || "",
+                pixQrCode: result.qr_code_base64 || "",
+                expiresAt,
+                paymentUrl: result.ticket_url || result.checkout_url,
+            };
+        } catch (error: any) {
+            console.error("[PixTracking] Error creating automated payment:", error);
+            throw new Error(error.message || "Falha ao criar pagamento automático. Tente novamente.");
+        }
+    } else {
+        // MANUAL PIX SYSTEM - As it was before
+        try {
+            // First, insert local record
+            const { data: localPayment, error: localError } = await supabase
+                .from('pix_payments')
+                .insert({
+                    user_id: userId,
+                    amount,
+                    payment_type: paymentType,
+                    reference_id: referenceId,
+                    status: 'pending',
+                    expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                })
+                .select()
+                .single();
+
+            if (localError) throw localError;
+
+            // Generate payload locally if manual PIX config exists
+            // (The component usually handles the QR generation, but we provide empty strings 
+            // to maintain the interface, or we could fetch config here)
+
+            return {
+                paymentId: localPayment.id,
+                pixPayload: "", // Component will generate based on its pixConfig
+                pixQrCode: "",
+                expiresAt: new Date(localPayment.expires_at),
+            };
+        } catch (error: any) {
+            console.error("[PixTracking] Error creating manual payment:", error);
+            throw new Error(error.message || "Erro ao gerar pagamento manual.");
+        }
+    }
 }
+
+
 
 /**
  * Checks if a PIX payment has been completed
@@ -162,22 +207,33 @@ async function handlePostPaymentActions(paymentId: string): Promise<void> {
 
         case "subscription":
             // Update user subscription status
-            // TODO: Implement subscription activation
-            break;
-
-        case "marketplace_order":
-            // Update order status
-            if (payment.reference_id) {
+            if (payment.user_id) {
+                const plan = (payment as any).desired_plan || "ADVANCE";
                 await supabase
-                    .from("marketplace_orders")
-                    .update({ payment_status: "paid" })
-                    .eq("id", payment.reference_id);
+                    .from("profiles")
+                    .update({
+                        subscription_plan: plan,
+                        // Add other plan-related fields if they exist in the schema
+                    })
+                    .eq("id", payment.user_id);
             }
             break;
 
         case "store_plan":
             // Update store subscription
-            // TODO: Implement store plan activation
+            if (payment.reference_id) {
+                const now = new Date();
+                const expiresAt = new Date(now);
+                expiresAt.setDate(now.getDate() + 30); // 30 days subscription
+
+                await supabase
+                    .from("marketplace_stores")
+                    .update({
+                        subscription_plan: "PRO",
+                        plan_expires_at: expiresAt.toISOString(),
+                    })
+                    .eq("id", payment.reference_id);
+            }
             break;
 
         case "professional_service":

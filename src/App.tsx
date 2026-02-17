@@ -31,6 +31,8 @@ import MarketplaceCategoriesPage from "./pages/MarketplaceCategoriesPage";
 import MarketplaceStoresPage from "./pages/MarketplaceStoresPage";
 import MarketplaceStorePage from "./pages/MarketplaceStorePage";
 import MarketplaceCartPage from "./pages/MarketplaceCartPage";
+import MarketplaceOrdersPage from "./pages/MarketplaceOrdersPage";
+import MarketplaceOrderDetailPage from "./pages/MarketplaceOrderDetailPage";
 import NutricionistaPage from "./pages/NutricionistaPage";
 import TelemedicinaPage from "./pages/TelemedicinaPage";
 import LojaDashboardPage from "./pages/LojaDashboard";
@@ -698,6 +700,26 @@ const AppRoutes = () => (
         }
       />
       <Route
+        path="/marketplace/pedidos"
+        element={
+          <AlunoRoute>
+            <RequireOnboarding>
+              <MarketplaceOrdersPage />
+            </RequireOnboarding>
+          </AlunoRoute>
+        }
+      />
+      <Route
+        path="/marketplace/pedido/:orderId"
+        element={
+          <AlunoRoute>
+            <RequireOnboarding>
+              <MarketplaceOrderDetailPage />
+            </RequireOnboarding>
+          </AlunoRoute>
+        }
+      />
+      <Route
         path="/aluno/modo-raiz"
         element={
           <AlunoRoute>
@@ -791,7 +813,7 @@ const AppRoutes = () => (
         }
       />
       <Route
-        path="/loja/perfil/plano"
+        path="/loja/plano"
         element={
           <LojaRoute>
             <LojaPlanoPage />

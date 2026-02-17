@@ -10,9 +10,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Minus, Plus, Trash2, Ticket, ShieldCheck, Truck, MapPin, QrCode, Copy, CheckCircle2 } from "lucide-react";
+import { Minus, Plus, Trash2, Ticket, ShieldCheck, Truck, MapPin, QrCode, Copy, CheckCircle2, Loader2, CreditCard, ExternalLink } from "lucide-react";
 import { buildPixPayload } from "@/lib/pix";
 import * as QRCodeLib from "qrcode";
+import { createPixPayment, checkPixPaymentStatus } from "@/lib/pixPaymentTracking";
+import mercadoPagoLogo from "@/assets/mercado-pago.png";
 
 interface CartItem {
   id: string;
@@ -69,12 +71,115 @@ export default function MarketplaceCartPage() {
   const [pixQrDataUrl, setPixQrDataUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [pixConfig, setPixConfig] = useState<PixConfig | null>(null);
+  const [pixPaymentId, setPixPaymentId] = useState<string | null>(null);
+  const [verifyingPayment, setVerifyingPayment] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<"pix" | "card">("pix");
+  const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<"pending" | "paid" | null>(null);
 
   const hasCouponAccess = plan === "ADVANCE" || plan === "ELITE";
 
   useEffect(() => {
     document.title = "Carrinho - Nexfit Marketplace";
   }, []);
+
+  // Auto-verify payment with polling when payment is pending
+  useEffect(() => {
+    if (!pixPaymentId || paymentStatus !== "pending") return;
+
+    console.log("[Cart] Starting auto-verification polling for payment:", pixPaymentId);
+
+    const pollInterval = setInterval(async () => {
+      try {
+        console.log("[Cart] Polling payment status...");
+        const status = await checkPixPaymentStatus(pixPaymentId);
+
+        if (status === "paid") {
+          console.log("[Cart] Payment confirmed via polling!");
+          setPaymentStatus("paid");
+
+          // Update order status
+          if (orderId) {
+            await (supabase as any)
+              .from("marketplace_orders")
+              .update({ status: "paid" })
+              .eq("id", orderId);
+          }
+
+          toast({
+            title: "Pagamento confirmado!",
+            description: "Seu pedido está sendo processado.",
+          });
+
+          clearInterval(pollInterval);
+
+          // Navigate to orders page after a short delay
+          setTimeout(() => {
+            navigate("/marketplace/pedidos");
+          }, 2000);
+        }
+      } catch (error) {
+        console.error("[Cart] Error polling payment:", error);
+      }
+    }, 3000); // Poll every 3 seconds
+
+    return () => {
+      console.log("[Cart] Cleaning up polling interval");
+      clearInterval(pollInterval);
+    };
+  }, [pixPaymentId, paymentStatus, orderId, navigate, toast]);
+
+  // Realtime subscription for instant payment confirmation
+  useEffect(() => {
+    if (!pixPaymentId) return;
+
+    console.log("[Cart] Setting up Realtime subscription for payment:", pixPaymentId);
+
+    const channel = supabase
+      .channel(`pix_payment_${pixPaymentId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'pix_payments',
+          filter: `id=eq.${pixPaymentId}`
+        },
+        async (payload) => {
+          console.log("[Cart] Realtime update received:", payload);
+          const newStatus = (payload.new as any).status;
+
+          if (newStatus === "paid" && paymentStatus !== "paid") {
+            console.log("[Cart] Payment confirmed via Realtime!");
+            setPaymentStatus("paid");
+
+            // Update order status
+            if (orderId) {
+              await (supabase as any)
+                .from("marketplace_orders")
+                .update({ status: "paid" })
+                .eq("id", orderId);
+            }
+
+            toast({
+              title: "Pagamento confirmado!",
+              description: "Seu pedido está sendo processado.",
+            });
+
+            // Navigate to orders page after a short delay
+            setTimeout(() => {
+              navigate("/marketplace/pedidos");
+            }, 2000);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log("[Cart] Cleaning up Realtime subscription");
+      supabase.removeChannel(channel);
+    };
+  }, [pixPaymentId, paymentStatus, orderId, navigate, toast]);
 
   useEffect(() => {
     const load = async () => {
@@ -263,10 +368,12 @@ export default function MarketplaceCartPage() {
   };
 
   const handleConfirmOrder = async () => {
-    if (!orderId || !user || !storeId) return;
+    if (!orderId || !user || !storeId || !pixConfig) return;
     setSubmitting(true);
 
     try {
+      // Manual system: Use the locally generated pixPayload
+      // Update order with payment info
       await (supabase as any)
         .from("marketplace_orders")
         .update({
@@ -278,38 +385,73 @@ export default function MarketplaceCartPage() {
           coupon_id: selectedCoupon?.id ?? null,
           delivery_address: deliveryAddress.trim(),
           delivery_city: deliveryCity.trim(),
-          pix_payload: pixPayload,
+          pix_payload: pixPayload, // Use the local payload
+          payment_method: 'pix',
         })
         .eq("id", orderId);
 
-      // Mark coupon as used if NOT virtual VIP coupon
+      // Mark coupon as used
       if (selectedCoupon && !isVipCouponApplied) {
         await (supabase as any)
           .from("marketplace_coupons")
           .update({ used_at: new Date().toISOString(), order_id: orderId })
           .eq("id", selectedCoupon.id);
-      } else if (isVipCouponApplied && selectedCoupon) {
-        // Log virtual coupon use
-        await (supabase as any)
-          .from("marketplace_coupons")
-          .insert({
-            user_id: user.id,
-            order_id: orderId,
-            used_at: new Date().toISOString(),
-            discount_percent: selectedCoupon.discount_percent,
-            free_shipping: selectedCoupon.free_shipping,
-            plan_at_issue: plan
-          });
       }
 
-      toast({ title: "Pedido enviado!", description: "Aguarde a confirmação da loja." });
-      navigate(`/marketplace/loja/${storeId}`);
-    } catch {
-      toast({ title: "Erro ao finalizar pedido", variant: "destructive" });
+      setPaymentStatus("pending");
+      toast({ title: "Pedido criado!", description: "Aguardando confirmação do pagamento PIX." });
+    } catch (error: any) {
+      console.error("Error confirming order:", error);
+      toast({ title: "Erro ao finalizar pedido", description: error.message, variant: "destructive" });
     } finally {
       setSubmitting(false);
     }
   };
+
+  const handleVerifyPayment = async () => {
+    if (!pixPaymentId || !orderId) return;
+    setVerifyingPayment(true);
+
+    try {
+      const status = await checkPixPaymentStatus(pixPaymentId);
+
+      if (status === "paid") {
+        setPaymentStatus("paid");
+
+        // Update order status
+        await (supabase as any)
+          .from("marketplace_orders")
+          .update({ status: "paid" })
+          .eq("id", orderId);
+
+        toast({
+          title: "Pagamento confirmado!",
+          description: "Seu pedido está sendo processado.",
+        });
+
+        // Navigate to orders page after a short delay
+        setTimeout(() => {
+          navigate("/marketplace/pedidos");
+        }, 2000);
+      } else {
+        toast({
+          title: "Pagamento pendente",
+          description: "Ainda não identificamos seu pagamento. Tente novamente em alguns instantes.",
+          variant: "default"
+        });
+      }
+    } catch (error: any) {
+      console.error("Error verifying payment:", error);
+      toast({
+        title: "Erro ao verificar pagamento",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setVerifyingPayment(false);
+    }
+  };
+
 
   const applyVipCoupon = () => {
     if (couponsUsedThisMonth >= 10) {
@@ -410,6 +552,9 @@ export default function MarketplaceCartPage() {
           submitting={submitting}
           pixConfig={pixConfig}
           shippingCost={shippingCost}
+          paymentStatus={paymentStatus}
+          onVerifyPayment={handleVerifyPayment}
+          verifyingPayment={verifyingPayment}
         />
       )}
       <FloatingNavIsland />
@@ -613,7 +758,8 @@ function CheckoutView({
   items, subtotal, discountAmount, selectedCoupon, freeShipping, total,
   deliveryAddress, deliveryCity,
   pixPayload, pixQrDataUrl, copied, onCopyPix, onConfirm, submitting, pixConfig,
-  shippingCost
+  shippingCost, paymentStatus, onVerifyPayment, verifyingPayment, onSimulatePayment,
+  paymentMethod, setPaymentMethod, paymentUrl
 }: any) {
   return (
     <div className="space-y-4">
@@ -647,19 +793,37 @@ function CheckoutView({
         </CardContent>
       </Card>
 
-      {/* Delivery */}
+      {/* Payment Method Selection */}
       <Card className="border-border/50 bg-card/30">
-        <CardContent className="py-4 text-sm">
-          <div className="flex items-center gap-2 font-semibold text-foreground mb-1">
-            <MapPin className="h-4 w-4 text-primary" /> Entrega
+        <CardContent className="py-4 space-y-3">
+          <p className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+            <CreditCard className="h-4 w-4 text-primary" /> Método de Pagamento
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <Button
+              variant={paymentMethod === "pix" ? "default" : "outline"}
+              className="w-full flex-col h-auto py-3 gap-1"
+              onClick={() => setPaymentMethod("pix")}
+              disabled={paymentStatus === "pending" || paymentStatus === "paid"}
+            >
+              <QrCode className="h-5 w-5" />
+              <span className="text-[10px] uppercase font-bold">PIX</span>
+            </Button>
+            <Button
+              variant={paymentMethod === "card" ? "default" : "outline"}
+              className="w-full flex-col h-auto py-3 gap-1"
+              onClick={() => setPaymentMethod("card")}
+              disabled={paymentStatus === "pending" || paymentStatus === "paid"}
+            >
+              <CreditCard className="h-5 w-5" />
+              <span className="text-[10px] uppercase font-bold">Cartão</span>
+            </Button>
           </div>
-          <p className="text-muted-foreground">{deliveryAddress}</p>
-          <p className="text-muted-foreground">{deliveryCity}</p>
         </CardContent>
       </Card>
 
       {/* PIX Payment */}
-      {pixConfig && pixPayload ? (
+      {paymentMethod === "pix" && pixPayload ? (
         <Card className="border-primary/30 bg-card/30">
           <CardContent className="py-5 text-center space-y-4">
             <div className="flex items-center justify-center gap-2 text-sm font-semibold text-foreground">
@@ -675,19 +839,83 @@ function CheckoutView({
             </Button>
           </CardContent>
         </Card>
-      ) : (
-        <Card className="border-border/50 bg-card/30">
+      ) : paymentMethod === "card" && paymentStatus === "pending" && paymentUrl ? (
+        <Card className="border-primary/30 bg-card/30">
+          <CardContent className="py-5 text-center space-y-4">
+            <div className="flex items-center justify-center gap-2 text-sm font-semibold text-foreground">
+              <CreditCard className="h-5 w-5 text-primary" /> Pagamento com Cartão
+            </div>
+            <p className="text-sm text-foreground">Clique no botão abaixo para concluir o pagamento no Mercado Pago seguro.</p>
+            <Button
+              className="w-full gap-2"
+              onClick={() => window.open(paymentUrl, '_blank')}
+            >
+              <ExternalLink className="h-4 w-4" />
+              Pagar no Mercado Pago
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* Payment Status & Actions */}
+      {paymentStatus === "paid" ? (
+        <Card className="border-primary/30 bg-primary/10">
           <CardContent className="py-4 text-center">
-            <p className="text-sm text-muted-foreground">
-              O pagamento será combinado diretamente com a loja.
+            <div className="flex items-center justify-center gap-2 text-primary font-bold">
+              <CheckCircle2 className="h-5 w-5" />
+              Pagamento Confirmado!
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Seu pedido está sendo processado.
             </p>
           </CardContent>
         </Card>
+      ) : (
+        <div className="space-y-3">
+          <Button
+            className="w-full"
+            size="lg"
+            onClick={onConfirm}
+            disabled={submitting || paymentStatus === "pending"}
+          >
+            {submitting ? "Finalizando..." : "Confirmar Pedido"}
+          </Button>
+
+          {paymentStatus === "pending" && (
+            <>
+              <Button
+                className="w-full"
+                size="lg"
+                variant="outline"
+                onClick={onVerifyPayment}
+                disabled={verifyingPayment}
+              >
+                {verifyingPayment ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Verificando...
+                  </>
+                ) : (
+                  <>
+                    <QrCode className="h-4 w-4 mr-2" />
+                    Já realizei o pagamento
+                  </>
+                )}
+              </Button>
+            </>
+          )}
+        </div>
       )}
 
-      <Button className="w-full" size="lg" onClick={onConfirm} disabled={submitting}>
-        {submitting ? "Finalizando..." : "Confirmar Pedido"}
-      </Button>
+      <div className="mt-8 flex flex-col items-center justify-center gap-2 border-t border-border/20 pt-4 opacity-70">
+        <div className="flex items-center gap-2 grayscale hover:grayscale-0 transition-all duration-500">
+          <img src={mercadoPagoLogo} alt="Mercado Pago" className="h-4 opacity-80" />
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1">
+            <ShieldCheck className="h-3 w-3" />
+            Pagamento Blindado
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
