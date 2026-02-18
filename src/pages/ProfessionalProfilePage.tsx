@@ -33,6 +33,9 @@ export default function ProfessionalProfilePage() {
         phone: "",
         email: "",
         instagram: "",
+        pix_key: "",
+        pix_receiver_name: "",
+        pix_bank_name: "",
     });
 
     const [telemedicinaServices, setTelemedicinaServices] = useState<any[]>([]);
@@ -71,6 +74,9 @@ export default function ProfessionalProfilePage() {
                 phone: data.phone || "",
                 email: data.email || "",
                 instagram: data.instagram || "",
+                pix_key: data.pix_key || "",
+                pix_receiver_name: data.pix_receiver_name || "",
+                pix_bank_name: data.pix_bank_name || "",
             });
         } catch (error: any) {
             console.error("Load profile error:", error);
@@ -95,6 +101,9 @@ export default function ProfessionalProfilePage() {
                     phone: formData.phone,
                     email: formData.email,
                     instagram: formData.instagram,
+                    pix_key: formData.pix_key,
+                    pix_receiver_name: formData.pix_receiver_name,
+                    pix_bank_name: formData.pix_bank_name,
                 })
                 .eq("id", profile.id);
 
@@ -133,6 +142,15 @@ export default function ProfessionalProfilePage() {
                         </Button>
                         <h1 className="text-2xl font-black text-white uppercase tracking-tight">Meu Perfil</h1>
                     </div>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-primary/20 bg-primary/5 text-primary rounded-xl font-bold uppercase text-[10px] h-9 px-4 hover:bg-primary/10"
+                        onClick={() => navigate("/professional/plano")}
+                    >
+                        <CreditCard className="mr-2 h-3.5 w-3.5" />
+                        Ver Assinatura
+                    </Button>
                 </header>
 
 
@@ -261,6 +279,44 @@ export default function ProfessionalProfilePage() {
                                     placeholder="@perfil"
                                 />
                             </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card className="border-white/10 bg-white/5 backdrop-blur-xl">
+                    <CardHeader>
+                        <CardTitle className="text-white">Dados Bancários (Pix)</CardTitle>
+                        <CardDescription className="text-zinc-400 text-xs">
+                            Configure sua chave Pix para receber os pagamentos diretamente de seus alunos.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                            <Label className="text-white">Chave Pix</Label>
+                            <Input
+                                value={formData.pix_key}
+                                onChange={(e) => setFormData({ ...formData, pix_key: e.target.value })}
+                                className="bg-black/20 border-white/10 text-white"
+                                placeholder="CPF, Email, Telefone ou Chave Aleatória"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-white">Nome do Recebedor (conforme banco)</Label>
+                            <Input
+                                value={formData.pix_receiver_name}
+                                onChange={(e) => setFormData({ ...formData, pix_receiver_name: e.target.value })}
+                                className="bg-black/20 border-white/10 text-white"
+                                placeholder="Seu nome completo"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-white">Instituição Financeira</Label>
+                            <Input
+                                value={formData.pix_bank_name}
+                                onChange={(e) => setFormData({ ...formData, pix_bank_name: e.target.value })}
+                                className="bg-black/20 border-white/10 text-white"
+                                placeholder="Nome do seu banco"
+                            />
                         </div>
                     </CardContent>
                 </Card>

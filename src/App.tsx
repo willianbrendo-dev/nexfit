@@ -17,7 +17,7 @@ import AlunoOnboardingPage from "./pages/AlunoOnboarding";
 // Admin Imports
 import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
 import AdminUsersPage from "./pages/admin/AdminUsersPage";
-import AdminFinancialPage from "./pages/admin/AdminFinancialPage";
+import AdminBillingPage from "./pages/admin/AdminBillingPage";
 import AdminStoresPage from "./pages/admin/AdminStoresPage";
 import AdminTelemedicinaPage from "./pages/admin/AdminTelemedicinaPage";
 import AdminContentPage from "./pages/admin/AdminContentPage";
@@ -81,6 +81,7 @@ import { useConnectionStatus } from "@/hooks/useConnectionStatus";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
 import AdminMasterPage from "./pages/AdminMaster";
 import AdminPricingPage from "./pages/admin/AdminPricingPage";
+import ProfessionalPlanoPage from "./pages/ProfessionalPlanoPage";
 
 const AlunoRoute = ({ children }: { children: JSX.Element }) => {
   const { user, loading } = useAuth();
@@ -411,7 +412,7 @@ const AppRoutes = () => (
       <Route path="/admin" element={<AdminLayout />}>
         <Route index element={<AdminDashboardPage />} />
         <Route path="users" element={<AdminUsersPage />} />
-        <Route path="financial" element={<AdminFinancialPage />} />
+        <Route path="financial" element={<AdminBillingPage />} />
         <Route path="stores" element={<AdminStoresPage />} />
         <Route path="telemedicina" element={<AdminTelemedicinaPage />} />
         <Route path="pricing" element={<AdminPricingPage />} />
@@ -895,6 +896,14 @@ const AppRoutes = () => (
         element={
           <ProfessionalRoute>
             <ProfessionalProfilePage />
+          </ProfessionalRoute>
+        }
+      />
+      <Route
+        path="/professional/plano"
+        element={
+          <ProfessionalRoute>
+            <ProfessionalPlanoPage />
           </ProfessionalRoute>
         }
       />

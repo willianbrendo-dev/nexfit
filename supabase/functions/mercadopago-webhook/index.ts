@@ -25,7 +25,7 @@ serve(async (req) => {
 
         // Mercado Pago webhooks often send just the ID. We need to fetch the full payment details.
         if (topic === 'payment') {
-            const MP_ACCESS_TOKEN = Deno.env.get('MERCADOPAGO_ACCESS_TOKEN')
+            const MP_ACCESS_TOKEN = await getConfig(supabaseClient, 'mercadopago_access_token') || Deno.env.get('MERCADOPAGO_ACCESS_TOKEN')
 
             const response = await fetch(`https://api.mercadopago.com/v1/payments/${id}`, {
                 headers: {
@@ -66,6 +66,16 @@ serve(async (req) => {
 
                 // If newly approved, handle post-payment logic
                 if (isPaid && localPayment.status !== 'paid') {
+                    // Update: Track revenue in financial_transactions
+                    await supabaseClient.from('financial_transactions').insert({
+                        type: 'income',
+                        amount_cents: Math.round((payment.transaction_amount || 0) * 100),
+                        description: `Pagamento MP #${id}: ${localPayment.payment_type}`,
+                        category: 'Mercado Pago',
+                        reference_id: externalReference,
+                        date: new Date().toISOString().split('T')[0]
+                    })
+
                     await handlePostPaymentActions(supabaseClient, localPayment)
                 }
             }
@@ -84,6 +94,15 @@ serve(async (req) => {
         })
     }
 })
+
+async function getConfig(supabase: any, key: string) {
+    const { data } = await supabase
+        .from('integration_configs')
+        .select('value')
+        .eq('key', key)
+        .maybeSingle()
+    return data?.value
+}
 
 async function handlePostPaymentActions(supabase: any, payment: any) {
     console.log(`[MP Webhook] Handling post-payment for type: ${payment.payment_type}`)

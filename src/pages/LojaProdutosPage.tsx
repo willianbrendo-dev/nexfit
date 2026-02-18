@@ -28,12 +28,7 @@ const LojaProdutosPage = () => {
   const [storeId, setStoreId] = useState<string | null>(null);
   const [products, setProducts] = useState<MarketplaceProduct[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ nome: "", preco: "", descricao: "" });
-  const [imageFiles, setImageFiles] = useState<File[]>([]);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Edit state
   const [editProduct, setEditProduct] = useState<MarketplaceProduct | null>(null);
@@ -76,92 +71,7 @@ const LojaProdutosPage = () => {
     void load();
   }, [user]);
 
-  // ── Create helpers ──
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    for (const file of files) {
-      if (!file.type.startsWith("image/")) {
-        toast({ title: "Selecione um arquivo de imagem", variant: "destructive" });
-        return;
-      }
-      if (file.size > 5 * 1024 * 1024) {
-        toast({ title: "Imagem deve ter no máximo 5MB", variant: "destructive" });
-        return;
-      }
-    }
-    const remaining = 3 - imageFiles.length;
-    const toAdd = files.slice(0, remaining);
-    setImageFiles((prev) => [...prev, ...toAdd]);
-    setImagePreviews((prev) => [...prev, ...toAdd.map((f) => URL.createObjectURL(f))]);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const removeImage = (index: number) => {
-    setImageFiles((prev) => prev.filter((_, i) => i !== index));
-    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const clearImages = () => {
-    setImageFiles([]);
-    setImagePreviews([]);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const uploadImages = async (files: File[], sId: string): Promise<string[]> => {
-    const urls: string[] = [];
-    for (const file of files) {
-      const ext = file.name.split(".").pop() ?? "jpg";
-      const path = `products/${sId}/${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage
-        .from("marketplace_store_images")
-        .upload(path, file, { contentType: file.type, upsert: false });
-      if (error) throw error;
-      const { data: urlData } = supabase.storage.from("marketplace_store_images").getPublicUrl(path);
-      urls.push(urlData.publicUrl);
-    }
-    return urls;
-  };
-
-  const handleSave = async () => {
-    if (!storeId) return;
-    const nome = form.nome.trim();
-    const preco = Number(form.preco.replace(",", "."));
-    if (!nome || !preco || Number.isNaN(preco)) {
-      toast({ title: "Preencha nome e preço válidos", variant: "destructive" });
-      return;
-    }
-    setSaving(true);
-    try {
-      const uploadedUrls = await uploadImages(imageFiles, storeId);
-      const { data, error } = await (supabase as any)
-        .from("marketplace_products")
-        .insert({
-          store_id: storeId,
-          nome,
-          descricao: form.descricao.trim() || null,
-          image_url: uploadedUrls[0] ?? null,
-          image_urls: uploadedUrls,
-          preco_original: preco,
-          preco_desconto: preco,
-          ativo: true,
-        })
-        .select()
-        .maybeSingle();
-
-      if (error || !data) {
-        toast({ title: "Erro ao cadastrar", description: error?.message, variant: "destructive" });
-      } else {
-        setProducts((p) => [...p, data as MarketplaceProduct]);
-        setForm({ nome: "", preco: "", descricao: "" });
-        clearImages();
-        setShowForm(false);
-        toast({ title: "Produto cadastrado!" });
-      }
-    } catch (err: any) {
-      toast({ title: "Erro ao enviar imagem", description: err.message, variant: "destructive" });
-    }
-    setSaving(false);
-  };
+  // ── Create helpers (Removed - Move to Stock Module) ──
 
   // ── Edit helpers ──
   const openEdit = (p: MarketplaceProduct) => {
@@ -211,6 +121,21 @@ const LojaProdutosPage = () => {
     const idx = url.indexOf(marker);
     if (idx === -1) return null;
     return url.substring(idx + marker.length);
+  };
+
+  const uploadImages = async (files: File[], sId: string): Promise<string[]> => {
+    const urls: string[] = [];
+    for (const file of files) {
+      const ext = file.name.split(".").pop() ?? "jpg";
+      const path = `products/${sId}/${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage
+        .from("marketplace_store_images")
+        .upload(path, file, { contentType: file.type, upsert: false });
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from("marketplace_store_images").getPublicUrl(path);
+      urls.push(urlData.publicUrl);
+    }
+    return urls;
   };
 
   const handleEditSave = async () => {
@@ -296,92 +221,11 @@ const LojaProdutosPage = () => {
 
   return (
     <main className="min-h-screen bg-black px-4 pb-28 pt-8 safe-bottom-floating-nav">
-      <header className="mb-6 flex items-center justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">Produtos</p>
-          <h1 className="mt-1 text-2xl font-black text-white uppercase tracking-tight">Meus Produtos</h1>
-        </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-bold uppercase tracking-widest text-black hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="h-4 w-4" /> Novo
-        </button>
+      <header className="mb-6">
+        <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">Produtos</p>
+        <h1 className="mt-1 text-2xl font-black text-white uppercase tracking-tight">Meus Produtos</h1>
       </header>
 
-      {/* ── Create Form ── */}
-      {showForm && (
-        <div className="mb-6 overflow-hidden rounded-[24px] border border-white/5 bg-white/[0.03] animate-in slide-in-from-top-4 fade-in duration-300">
-          <div className="border-b border-white/5 bg-white/5 px-6 py-4">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Novo Produto</h3>
-          </div>
-          <div className="space-y-4 p-6">
-            <div className="space-y-2">
-              <Label className="text-xs text-zinc-400 uppercase tracking-wider">Nome do Produto</Label>
-              <Input
-                value={form.nome}
-                onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
-                placeholder="Ex: Whey Protein 900g"
-                className="h-11 rounded-xl border-white/10 bg-black/40 text-white placeholder:text-zinc-600 focus:border-primary/50 focus:ring-primary/20"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs text-zinc-400 uppercase tracking-wider">Preço (R$)</Label>
-              <Input
-                value={form.preco}
-                onChange={(e) => setForm((f) => ({ ...f, preco: e.target.value }))}
-                placeholder="Ex: 199,90"
-                className="h-11 rounded-xl border-white/10 bg-black/40 text-white placeholder:text-zinc-600 focus:border-primary/50 focus:ring-primary/20"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs text-zinc-400 uppercase tracking-wider">Imagens (Máx 3)</Label>
-              <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFileChange} />
-              <div className="flex gap-3 flex-wrap">
-                {imagePreviews.map((preview, i) => (
-                  <div key={i} className="relative inline-block group">
-                    <img src={preview} alt={`Preview ${i + 1}`} className="h-24 w-24 rounded-xl border border-white/10 object-cover" />
-                    <button type="button" onClick={() => removeImage(i)} className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-white shadow-md hover:bg-red-600 transition-colors">
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-                {imageFiles.length < 3 && (
-                  <button type="button" onClick={() => fileInputRef.current?.click()} className="flex h-24 w-24 flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-white/20 bg-white/5 text-zinc-400 transition-colors hover:border-primary/50 hover:text-primary hover:bg-primary/5">
-                    <ImagePlus className="h-6 w-6" />
-                    <span className="text-[9px] uppercase font-bold tracking-wide">Adicionar</span>
-                  </button>
-                )}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs text-zinc-400 uppercase tracking-wider">Descrição</Label>
-              <Textarea
-                value={form.descricao}
-                onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))}
-                placeholder="Detalhes do produto product..."
-                className="min-h-[80px] rounded-xl border-white/10 bg-black/40 text-white placeholder:text-zinc-600 focus:border-primary/50 focus:ring-primary/20"
-              />
-            </div>
-            <div className="flex justify-end gap-3 pt-2">
-              <Button
-                variant="ghost"
-                onClick={() => { setShowForm(false); clearImages(); }}
-                className="text-zinc-400 hover:text-white hover:bg-white/5"
-              >
-                Cancelar
-              </Button>
-              <Button
-                onClick={handleSave}
-                disabled={saving}
-                className="bg-primary text-black hover:bg-primary/90 font-bold uppercase tracking-widest"
-              >
-                {saving ? "Salvando..." : "Salvar Produto"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── Product List ── */}
       {loading ? (
@@ -394,9 +238,7 @@ const LojaProdutosPage = () => {
             <Package className="h-8 w-8 text-zinc-600" />
           </div>
           <p className="text-sm text-zinc-500">Nenhum produto cadastrado ainda.</p>
-          <Button variant="link" onClick={() => setShowForm(true)} className="text-primary mt-2">
-            Cadastrar o primeiro
-          </Button>
+          <p className="text-xs text-zinc-600 mt-2">Cadastre novos produtos no módulo de Estoque.</p>
         </div>
       ) : (
         <div className="grid gap-3 pb-8">

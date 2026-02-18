@@ -50,7 +50,7 @@ export default function ProfessionalAgendaPage() {
     const [hires, setHires] = useState<HireRequest[]>([]);
     const [date, setDate] = useState<Date | undefined>(new Date());
 
-    const canAccessAgenda = isElite || isMaster;
+    const canAccessAgenda = true; // Always unlocked
 
     useEffect(() => {
         if (canAccessAgenda && user) {

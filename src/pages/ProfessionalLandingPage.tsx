@@ -122,8 +122,8 @@ export default function ProfessionalLandingPage() {
                     amount: professional.base_price,
                     paymentType: "professional_service",
                     referenceId: hire.id,
-                    pixKey: "admin@nexfit.com", // Admin receives for now
-                    receiverName: "NEXFIT TECNOLOGIA",
+                    pixKey: professional.pix_key || "admin@nexfit.com",
+                    receiverName: professional.pix_receiver_name || "NEXFIT TECNOLOGIA",
                     description: `Serviço Profissional: ${professional.name}`
                 });
 

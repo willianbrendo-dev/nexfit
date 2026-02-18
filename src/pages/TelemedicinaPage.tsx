@@ -53,12 +53,12 @@ interface TelemedServico {
 
 interface TelemedProfissional {
   id: string;
-  nome: string;
+  name: string;
   bio: string | null;
-  preco_base: number | null;
-  disponivel: boolean | null;
-  servico_id: string | null;
-  foto_url: string | null;
+  base_price: number | null;
+  is_available: boolean | null;
+  telemedicina_servico_id: string | null;
+  profile_image_url: string | null;
 }
 
 const TelemedicinaPage = () => {
@@ -91,16 +91,17 @@ const TelemedicinaPage = () => {
       setLoading(true);
 
       const [{ data: servicosData }, { data: profData }] = await Promise.all([
-        supabase
+        (supabase as any)
           .from("telemedicina_servicos")
           .select("id, nome, slug, icone, icon_url, ativo")
           .eq("ativo", true)
           .order("nome"),
-        supabase
-          .from("telemedicina_profissionais")
-          .select("id, nome, bio, preco_base, disponivel, servico_id, foto_url")
-          .eq("disponivel", true)
-          .order("nome"),
+        (supabase as any)
+          .from("professionals")
+          .select("id, name, bio, base_price, is_available, telemedicina_servico_id, profile_image_url")
+          .not("telemedicina_servico_id", "is", null)
+          .eq("is_available", true)
+          .order("name"),
       ]);
 
       setServicos((servicosData as any) ?? []);
@@ -128,21 +129,19 @@ const TelemedicinaPage = () => {
         student_id: user.id,
         message: "Contratação via Telemedicina",
         status: "pending",
-        paid_amount: profissional.preco_base || 0,
+        paid_amount: profissional.base_price || 0,
         payment_status: "pending"
       }).select("id").single();
 
       if (error) throw error;
 
-      if (profissional.preco_base && profissional.preco_base > 0) {
+      if (profissional.base_price && profissional.base_price > 0) {
         const result = await createPixPayment({
           userId: user.id,
-          amount: profissional.preco_base,
+          amount: profissional.base_price,
           paymentType: "professional_service",
           referenceId: hire.id,
-          pixKey: "admin@nexfit.com",
-          receiverName: "NEXFIT TECNOLOGIA",
-          description: `Telemedicina: ${profissional.nome}`
+          description: `Telemedicina: ${profissional.name}`
         });
 
         setPixData(result);
@@ -192,7 +191,7 @@ const TelemedicinaPage = () => {
   };
 
   const professionalsFiltered = filtroServico
-    ? profissionais.filter(p => p.servico_id === filtroServico)
+    ? profissionais.filter(p => p.telemedicina_servico_id === filtroServico)
     : profissionais;
 
   if (!podeAcessar && plan === "FREE") {
@@ -278,7 +277,7 @@ const TelemedicinaPage = () => {
               <div className="grid grid-cols-2 gap-3">
                 {servicos.map((s, idx) => {
                   const Icon = getServicoIcon(s.slug);
-                  const count = profissionais.filter(p => p.servico_id === s.id).length;
+                  const count = profissionais.filter(p => p.telemedicina_servico_id === s.id).length;
 
                   const colors = [
                     { color: "from-blue-500/10 to-blue-600/5", border: "border-blue-500/20", icon: "text-blue-400" },
@@ -371,10 +370,10 @@ const TelemedicinaPage = () => {
                   >
                     {/* Card Banner */}
                     <div className="relative aspect-[16/8] overflow-hidden">
-                      {p.foto_url ? (
+                      {p.profile_image_url ? (
                         <img
-                          src={p.foto_url}
-                          alt={p.nome}
+                          src={p.profile_image_url}
+                          alt={p.name}
                           className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
                         />
                       ) : (
@@ -389,16 +388,16 @@ const TelemedicinaPage = () => {
                     <div className="relative -mt-10 p-5 pt-0">
                       <div className="flex items-end justify-between">
                         <div className="h-16 w-16 rounded-2xl border-4 border-background bg-zinc-900 shadow-2xl flex items-center justify-center font-black text-primary text-xl uppercase overflow-hidden">
-                          {p.foto_url ? <img src={p.foto_url} className="h-full w-full object-cover" /> : p.nome.charAt(0)}
+                          {p.profile_image_url ? <img src={p.profile_image_url} className="h-full w-full object-cover" /> : p.name.charAt(0)}
                         </div>
                         <Badge className="bg-primary text-black font-black uppercase text-[10px] mb-2 px-3 py-1 shadow-lg shadow-primary/20">
-                          R$ {p.preco_base?.toFixed(2) || "0.00"}
+                          R$ {p.base_price?.toFixed(2) || "0.00"}
                         </Badge>
                       </div>
 
                       <div className="mt-3">
                         <h3 className="text-lg font-black text-white group-hover:text-primary transition-colors flex items-center gap-2 leading-none">
-                          {p.nome}
+                          {p.name}
                           <CheckCircle2 className="h-3 w-3 text-primary" />
                         </h3>
                         <p className="mt-2 line-clamp-2 text-[11px] font-medium leading-relaxed text-muted-foreground opacity-80">
@@ -439,17 +438,17 @@ const TelemedicinaPage = () => {
             <div className="flex flex-col">
               <div className="relative h-40 overflow-hidden">
                 <img
-                  src={profissionalSelecionado.foto_url || "https://images.unsplash.com/photo-1576091160550-217359f51f8c?q=80&w=2070"}
+                  src={profissionalSelecionado.profile_image_url || "https://images.unsplash.com/photo-1576091160550-217359f51f8c?q=80&w=2070"}
                   className="h-full w-full object-cover opacity-60"
                   alt="Banner"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent" />
                 <div className="absolute bottom-4 left-6 flex items-end gap-4">
                   <div className="h-16 w-16 rounded-2xl border-2 border-primary bg-zinc-900 flex items-center justify-center font-black text-primary text-2xl overflow-hidden shadow-2xl">
-                    {profissionalSelecionado.foto_url ? <img src={profissionalSelecionado.foto_url} className="h-full w-full object-cover" alt="Profile" /> : profissionalSelecionado.nome.charAt(0)}
+                    {profissionalSelecionado.profile_image_url ? <img src={profissionalSelecionado.profile_image_url} className="h-full w-full object-cover" alt="Profile" /> : profissionalSelecionado.name.charAt(0)}
                   </div>
                   <div className="mb-1">
-                    <h3 className="text-xl font-black text-white leading-none mb-1">{profissionalSelecionado.nome}</h3>
+                    <h3 className="text-xl font-black text-white leading-none mb-1">{profissionalSelecionado.name}</h3>
                     <Badge className="bg-primary/20 text-primary border-primary/20 text-[8px] font-black uppercase tracking-widest">
                       Profissional Verificado
                     </Badge>
@@ -468,7 +467,7 @@ const TelemedicinaPage = () => {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-4">
                     <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Investimento</p>
-                    <p className="text-lg font-black text-primary">R$ {profissionalSelecionado.preco_base?.toFixed(2)}</p>
+                    <p className="text-lg font-black text-primary">R$ {profissionalSelecionado.base_price?.toFixed(2)}</p>
                   </div>
                   <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-4 flex flex-col justify-center">
                     <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Duração</p>
@@ -524,7 +523,7 @@ const TelemedicinaPage = () => {
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-wider text-white/40">Valor a pagar</p>
                     <p className="text-2xl font-black text-primary">
-                      R$ {profissionalSelecionado?.preco_base?.toFixed(2)}
+                      R$ {profissionalSelecionado?.base_price?.toFixed(2)}
                     </p>
                   </div>
                   <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">

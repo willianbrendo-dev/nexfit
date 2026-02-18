@@ -92,69 +92,74 @@ export function MyPlanCard() {
   }, [billing?.plan_expires_at, plan]);
 
   return (
-    <div className="relative overflow-hidden rounded-[32px] border border-white/5 bg-white/[0.03] p-6 backdrop-blur-xl">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/20">
-          <Crown className="h-5 w-5 text-primary" />
+    <div className="relative overflow-hidden rounded-[2.5rem] border border-white/5 bg-black/40 p-8 backdrop-blur-2xl transition-all duration-300 hover:border-primary/30">
+      <div className="absolute -inset-0.5 bg-gradient-to-b from-primary/10 to-transparent opacity-50" />
+
+      <div className="relative z-10 flex items-center gap-4 mb-8">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/20 ring-1 ring-primary/20 shadow-lg">
+          <Crown className="h-7 w-7 text-primary shadow-[0_0_15px_rgba(234,255,0,0.4)]" />
         </div>
         <div>
-          <h2 className="text-[10px] font-black uppercase tracking-widest text-primary/60">Assinatura</h2>
-          <p className="text-sm font-black text-foreground uppercase tracking-tight">Meu Plano</p>
+          <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-primary italic">Assinatura Nexfit</h2>
+          <p className="text-xl font-black text-white uppercase tracking-tighter">Status de Acesso</p>
         </div>
       </div>
 
-      <div className="space-y-6">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
-            <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-1">Plano Atual</p>
-            <Badge variant={PLAN_BADGE_VARIANT[plan]} className="uppercase text-[10px] py-1 px-2.5 rounded-lg">
+      <div className="relative z-10 space-y-8">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="rounded-[1.5rem] border border-white/5 bg-white/[0.03] p-5 backdrop-blur-sm">
+            <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-2 italic">Plano Atual</p>
+            <Badge variant={PLAN_BADGE_VARIANT[plan]} className="uppercase text-[11px] font-black tracking-tight py-1 px-3 bg-primary text-black border-none rounded-xl">
               {PLAN_LABEL[plan]}
             </Badge>
           </div>
-          <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
-            <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-1">Validade</p>
-            <p className="text-sm font-bold text-foreground">{expiryLabel}</p>
+          <div className="rounded-[1.5rem] border border-white/5 bg-white/[0.03] p-5 backdrop-blur-sm">
+            <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-2 italic">Validade</p>
+            <p className="text-sm font-black text-white tracking-tight">{expiryLabel.toUpperCase()}</p>
           </div>
         </div>
 
-        <section aria-label="Histórico de pagamentos" className="space-y-3">
-          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground pl-1">Histórico de Transações</p>
-          <div className="rounded-2xl border border-white/5 overflow-hidden bg-white/[0.02]">
+        <section aria-label="Histórico de pagamentos" className="space-y-4">
+          <div className="flex items-center gap-2 pl-1">
+            <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 italic">Transações Recentes</p>
+          </div>
+          <div className="rounded-[1.5rem] border border-white/5 overflow-hidden bg-black/20 backdrop-blur-sm">
             <Table>
               <TableHeader>
-                <TableRow className="bg-white/5 hover:bg-white/5 border-white/5">
-                  <TableHead className="h-10 text-[9px] uppercase font-black text-muted-foreground">Data</TableHead>
-                  <TableHead className="h-10 text-[9px] uppercase font-black text-muted-foreground">Plano</TableHead>
-                  <TableHead className="h-10 text-[9px] uppercase font-black text-muted-foreground text-right">Status</TableHead>
+                <TableRow className="bg-white/[0.02] hover:bg-white/[0.02] border-white/5">
+                  <TableHead className="h-12 text-[9px] uppercase font-black text-zinc-500 tracking-widest">Data</TableHead>
+                  <TableHead className="h-12 text-[9px] uppercase font-black text-zinc-500 tracking-widest">Plano</TableHead>
+                  <TableHead className="h-12 text-[9px] uppercase font-black text-zinc-500 tracking-widest text-right">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paymentHistory.length === 0 ? (
-                  <TableRow className="hover:bg-white/5 border-white/5">
-                    <TableCell colSpan={3} className="py-8 text-center text-xs text-muted-foreground font-medium">
-                      Nenhum pagamento registrado.
+                  <TableRow className="hover:bg-white/[0.02] border-white/5">
+                    <TableCell colSpan={3} className="py-12 text-center text-[10px] text-zinc-600 font-bold uppercase tracking-widest">
+                      Nenhum registro encontrado
                     </TableCell>
                   </TableRow>
                 ) : (
                   paymentHistory.map((row) => (
-                    <TableRow key={row.id} className="hover:bg-white/5 border-white/5">
-                      <TableCell className="text-[10px] font-medium text-muted-foreground">
+                    <TableRow key={row.id} className="hover:bg-white/[0.01] border-white/5">
+                      <TableCell className="text-[10px] font-bold text-zinc-400">
                         {new Date(row.requested_at).toLocaleDateString("pt-BR")}
                       </TableCell>
-                      <TableCell className="text-[10px] font-black uppercase text-foreground">
+                      <TableCell className="text-[10px] font-black uppercase text-white tracking-tight">
                         {PLAN_LABEL[row.desired_plan]}
                       </TableCell>
                       <TableCell className="text-right">
                         <Badge
                           variant="outline"
-                          className={`text-[9px] uppercase font-bold border-0 bg-opacity-20 ${row.status === "approved"
+                          className={`text-[9px] uppercase font-black tracking-tighter border-none px-2 py-0.5 rounded-lg ${row.status === "approved"
                             ? "bg-primary/20 text-primary"
                             : row.status === "pending"
                               ? "bg-yellow-500/20 text-yellow-500"
-                              : "bg-destructive/20 text-destructive"
+                              : "bg-red-500/20 text-red-500"
                             }`}
                         >
-                          {row.status === "approved" ? "Aprovado" : row.status === "pending" ? "Pendente" : "Recusado"}
+                          {row.status === "approved" ? "OK" : row.status === "pending" ? "Aguardando" : "Erro"}
                         </Badge>
                       </TableCell>
                     </TableRow>

@@ -38,7 +38,7 @@ export const AdminLayout = () => {
     const navItems = [
         { label: "Dashboard", icon: LayoutDashboard, path: "/admin" },
         { label: "Usuários", icon: Users, path: "/admin/users" },
-        { label: "Pagamentos", icon: CreditCard, path: "/admin/financial" },
+        { label: "Faturamento", icon: CreditCard, path: "/admin/financial" },
         { label: "Marketplace", icon: Store, path: "/admin/stores" },
         { label: "Telemedicina", icon: Stethoscope, path: "/admin/telemedicina" },
         { label: "Precificação", icon: CreditCard, path: "/admin/pricing" },

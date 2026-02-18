@@ -52,7 +52,7 @@ export default function ProfessionalChatPage() {
     const [messages, setMessages] = useState<Message[]>([]);
     const [newMessage, setNewMessage] = useState("");
     const { isElite, isMaster, loading: loadingPlan } = useUserPlan();
-    const canAccessChat = isElite || isMaster;
+    const canAccessChat = true; // Always unlocked
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {

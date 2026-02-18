@@ -20,6 +20,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Plus, Edit, Trash2, Save } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type HighlightOffer = {
     id: string;
@@ -50,6 +60,8 @@ export const HighlightOffersManager = () => {
     });
     const [featureInput, setFeatureInput] = useState("");
     const [saving, setSaving] = useState(false);
+    const [offerToDelete, setOfferToDelete] = useState<string | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const { data: offers = [], isLoading } = useQuery<HighlightOffer[]>({
         queryKey: ["highlight-offers"],
@@ -146,8 +158,7 @@ export const HighlightOffersManager = () => {
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm("Tem certeza que deseja excluir esta oferta?")) return;
-
+        setIsDeleting(true);
         try {
             const { error } = await supabase.from("highlight_offers").delete().eq("id", id);
             if (error) throw error;
@@ -155,6 +166,9 @@ export const HighlightOffersManager = () => {
             queryClient.invalidateQueries({ queryKey: ["highlight-offers"] });
         } catch (e: any) {
             toast({ title: "Erro", description: e.message, variant: "destructive" });
+        } finally {
+            setIsDeleting(false);
+            setOfferToDelete(null);
         }
     };
 
@@ -227,7 +241,7 @@ export const HighlightOffersManager = () => {
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    onClick={() => handleDelete(offer.id)}
+                                                    onClick={() => setOfferToDelete(offer.id)}
                                                     className="h-8 w-8 text-red-400 hover:bg-red-400/10"
                                                 >
                                                     <Trash2 className="h-4 w-4" />
@@ -358,6 +372,28 @@ export const HighlightOffersManager = () => {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <AlertDialog open={!!offerToDelete} onOpenChange={(open) => !open && setOfferToDelete(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Excluir Oferta</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Tem certeza que deseja excluir esta oferta? Esta ação não pode ser desfeita.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => offerToDelete && handleDelete(offerToDelete)}
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                            disabled={isDeleting}
+                        >
+                            {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                            Excluir
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     );
 };

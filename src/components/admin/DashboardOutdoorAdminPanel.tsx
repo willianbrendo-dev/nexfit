@@ -9,6 +9,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Loader2, Trash2 } from "lucide-react";
 
 type OutdoorRow = {
   id: string;
@@ -71,6 +82,8 @@ export const DashboardOutdoorAdminPanel = () => {
   const [saving, setSaving] = useState(false);
 
   const [drafts, setDrafts] = useState<OutdoorDraft[]>(() => [newDraft()]);
+  const [outdoorToDelete, setOutdoorToDelete] = useState<OutdoorRow | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const canRender = !roleLoading && (isAdmin || isAdminMaster);
 
@@ -190,21 +203,25 @@ export const DashboardOutdoorAdminPanel = () => {
   };
 
   const remove = async (row: OutdoorRow) => {
-    const ok = window.confirm("Excluir este outdoor? (isso não pode ser desfeito)");
-    if (!ok) return;
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase.from("dashboard_outdoors").delete().eq("id", row.id);
+      if (error) {
+        toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" });
+        return;
+      }
 
-    const { error } = await supabase.from("dashboard_outdoors").delete().eq("id", row.id);
-    if (error) {
-      toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" });
-      return;
+      // best-effort: remove file from bucket
+      if (row.image_path) {
+        await supabase.storage.from("dashboard_outdoors").remove([row.image_path]);
+      }
+
+      setRows((prev) => prev.filter((r) => r.id !== row.id));
+      toast({ title: "Excluído", description: "Outdoor removido com sucesso." });
+    } finally {
+      setIsDeleting(false);
+      setOutdoorToDelete(null);
     }
-
-    // best-effort: remove file from bucket
-    if (row.image_path) {
-      await supabase.storage.from("dashboard_outdoors").remove([row.image_path]);
-    }
-
-    setRows((prev) => prev.filter((r) => r.id !== row.id));
   };
 
   const hint = useMemo(() => {
@@ -358,7 +375,7 @@ export const DashboardOutdoorAdminPanel = () => {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button type="button" size="sm" variant="ghost" onClick={() => void remove(r)}>
+                      <Button type="button" size="sm" variant="ghost" onClick={() => void setOutdoorToDelete(r)}>
                         Excluir
                       </Button>
                     </TableCell>
@@ -369,6 +386,28 @@ export const DashboardOutdoorAdminPanel = () => {
           </Table>
         </div>
       </CardContent>
+
+      <AlertDialog open={!!outdoorToDelete} onOpenChange={(open) => !open && setOutdoorToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Outdoor</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir este outdoor? Esta ação não pode ser desfeita e a imagem será removida permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => outdoorToDelete && void remove(outdoorToDelete)}
+              className="bg-red-600 hover:bg-red-700 text-white"
+              disabled={isDeleting}
+            >
+              {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 };

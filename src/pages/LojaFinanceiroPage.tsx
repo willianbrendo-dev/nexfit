@@ -4,12 +4,24 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { LojaFloatingNavIsland } from "@/components/navigation/LojaFloatingNavIsland";
 import { Button } from "@/components/ui/button";
-import { DollarSign, TrendingUp, CreditCard, Sparkles, Crown, Calendar, Lock, ArrowUpRight } from "lucide-react";
+import { DollarSign, TrendingUp, CreditCard, Sparkles, Crown, Calendar, Lock, ArrowUpRight, BarChart3 } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell
+} from 'recharts';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
 interface FinanceStats {
   totalSales: number;
   orderCount: number;
   pendingValue: number;
+  dailyData: { date: string; amount: number }[];
 }
 
 const LojaFinanceiroPage = () => {
@@ -18,7 +30,12 @@ const LojaFinanceiroPage = () => {
 
   const [loading, setLoading] = useState(true);
   const [isPro, setIsPro] = useState(true);
-  const [stats, setStats] = useState<FinanceStats>({ totalSales: 0, orderCount: 0, pendingValue: 0 });
+  const [stats, setStats] = useState<FinanceStats>({
+    totalSales: 0,
+    orderCount: 0,
+    pendingValue: 0,
+    dailyData: []
+  });
 
   useEffect(() => {
     document.title = "Financeiro - Nexfit Lojista";
@@ -36,27 +53,53 @@ const LojaFinanceiroPage = () => {
 
       if (!store) return;
 
-      const isStorePro = store.subscription_plan === "PRO";
+      const isStorePro = true; // Always unlocked
       setIsPro(isStorePro);
 
       const { data: orders } = await (supabase as any)
         .from("marketplace_orders")
-        .select("total, status")
-        .eq("store_id", store.id);
+        .select("total, status, created_at")
+        .eq("store_id", store.id)
+        .order('created_at', { ascending: true });
 
       if (orders) {
-        const totalSales = orders
-          .filter((o: any) => o.status === "delivered" || o.status === "paid" || o.status === "accepted")
-          .reduce((acc: number, o: any) => acc + (o.total || 0), 0);
+        const confirmedOrders = orders.filter((o: any) =>
+          o.status === "delivered" || o.status === "paid" || o.status === "accepted"
+        );
+
+        const totalSales = confirmedOrders.reduce((acc: number, o: any) => acc + (o.total || 0), 0);
 
         const pendingValue = orders
           .filter((o: any) => o.status === "pending")
           .reduce((acc: number, o: any) => acc + (o.total || 0), 0);
 
+        // Aggregate daily data for the last 30 days
+        const last30Days: Record<string, number> = {};
+        const now = new Date();
+        for (let i = 29; i >= 0; i--) {
+          const d = new Date();
+          d.setDate(now.getDate() - i);
+          const dateStr = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+          last30Days[dateStr] = 0;
+        }
+
+        confirmedOrders.forEach((o: any) => {
+          const dateStr = new Date(o.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+          if (last30Days[dateStr] !== undefined) {
+            last30Days[dateStr] += (o.total || 0);
+          }
+        });
+
+        const dailyData = Object.entries(last30Days).map(([date, amount]) => ({
+          date,
+          amount
+        }));
+
         setStats({
           totalSales,
           orderCount: orders.length,
           pendingValue,
+          dailyData
         });
       }
     } catch (error) {
@@ -130,73 +173,87 @@ const LojaFinanceiroPage = () => {
         </div>
       </div>
 
-      {!isPro ? (
-        <div className="relative mt-8 overflow-hidden rounded-[32px] border border-primary/30 p-6 text-center">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-black to-black" />
-          <div className="relative z-10 flex flex-col items-center">
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 border border-primary/20 shadow-[0_0_15px_rgba(86,255,2,0.15)]">
-              <Sparkles className="h-8 w-8 text-primary" />
+      {/* RELATÓRIOS PRO SECTION REMOVED AS IT IS NOW UNLOCKED */}
+      <div className="mt-8 space-y-4">
+        <div className="overflow-hidden rounded-[24px] border border-white/5 bg-white/[0.03] backdrop-blur-md">
+          <div className="flex items-center gap-2 border-b border-white/5 bg-white/5 px-5 py-4">
+            <Calendar className="h-4 w-4 text-primary" />
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Relatório Simplificado</h3>
+          </div>
+          <div className="p-5 space-y-4">
+            <div className="flex justify-between items-center border-b border-white/5 pb-3">
+              <span className="text-sm text-zinc-400">Faturamento Bruto</span>
+              <span className="text-sm font-bold text-white">{formatBRL(stats.totalSales + stats.pendingValue)}</span>
             </div>
-            <h2 className="text-xl font-black text-white uppercase tracking-tight flex items-center gap-2 mb-2">
-              <Crown className="h-5 w-5 text-yellow-400 fill-yellow-400" />
-              Relatórios PRO
-            </h2>
-            <p className="text-sm text-zinc-400 mb-6 leading-relaxed max-w-[280px]">
-              Desbloqueie relatórios de vendas consolidados, lucros por produto e taxas de conversão.
+            <div className="flex justify-between items-center border-b border-white/5 pb-3">
+              <span className="text-sm text-zinc-400">Custos Operacionais</span>
+              <span className="text-sm font-bold text-red-400">R$ 0,00</span>
+            </div>
+            <div className="flex justify-between items-center pt-1">
+              <span className="text-sm font-bold text-white">Resultado Líquido</span>
+              <span className="text-base font-black text-primary">{formatBRL(stats.totalSales)}</span>
+            </div>
+          </div>
+          <div className="bg-primary/5 px-5 py-3">
+            <p className="text-[10px] text-zinc-500 italic">
+              * Baseado nos pedidos entregues e pagos.
             </p>
-            <Button
-              onClick={() => navigate("/loja/plano")}
-              className="w-full h-12 rounded-xl bg-primary text-base font-bold text-black hover:bg-primary/90 uppercase tracking-widest shadow-[0_0_20px_rgba(86,255,2,0.25)]"
-            >
-              Desbloquear Agora
-            </Button>
           </div>
         </div>
-      ) : (
-        <div className="mt-8 space-y-4">
-          <div className="overflow-hidden rounded-[24px] border border-white/5 bg-white/[0.03] backdrop-blur-md">
-            <div className="flex items-center gap-2 border-b border-white/5 bg-white/5 px-5 py-4">
-              <Calendar className="h-4 w-4 text-primary" />
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider">Relatório Simplificado</h3>
-            </div>
-            <div className="p-5 space-y-4">
-              <div className="flex justify-between items-center border-b border-white/5 pb-3">
-                <span className="text-sm text-zinc-400">Faturamento Bruto</span>
-                <span className="text-sm font-bold text-white">{formatBRL(stats.totalSales + stats.pendingValue)}</span>
-              </div>
-              <div className="flex justify-between items-center border-b border-white/5 pb-3">
-                <span className="text-sm text-zinc-400">Custos Operacionais</span>
-                <span className="text-sm font-bold text-red-400">R$ 0,00</span>
-              </div>
-              <div className="flex justify-between items-center pt-1">
-                <span className="text-sm font-bold text-white">Resultado Líquido</span>
-                <span className="text-base font-black text-primary">{formatBRL(stats.totalSales)}</span>
-              </div>
-            </div>
-            <div className="bg-primary/5 px-5 py-3">
-              <p className="text-[10px] text-zinc-500 italic">
-                * Baseado nos pedidos entregues e pagos.
-              </p>
+
+        <div className="overflow-hidden rounded-[32px] border border-white/5 bg-white/[0.03] p-6 backdrop-blur-xl">
+          <div className="mb-6 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-primary" />
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider">Desempenho de Vendas</h3>
             </div>
           </div>
 
-          <div className="rounded-[24px] border border-white/5 bg-white/[0.03] p-6 text-center">
-            <div className="flex justify-center mb-3">
-              <div className="h-12 w-12 rounded-full bg-white/5 flex items-center justify-center text-zinc-500">
-                <Lock className="h-5 w-5" />
-              </div>
+          <div className="h-[200px] w-full">
+            <ChartContainer config={{
+              amount: { label: "Vendas", color: "hsl(var(--primary))" }
+            }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={stats.dailyData}>
+                  <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                  <XAxis
+                    dataKey="date"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 10 }}
+                    minTickGap={20}
+                  />
+                  <YAxis hide />
+                  <Tooltip
+                    content={<ChartTooltipContent hideLabel />}
+                    cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                  />
+                  <Bar
+                    dataKey="amount"
+                    radius={[4, 4, 0, 0]}
+                  >
+                    {stats.dailyData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.amount > 0 ? "var(--primary)" : "rgba(255,255,255,0.1)"} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </div>
+
+          <div className="mt-4 flex items-center justify-between border-t border-white/5 pt-4">
+            <p className="text-[10px] text-zinc-500 italic uppercase tracking-wider">Últimos 30 dias</p>
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-primary" />
+              <span className="text-[10px] text-zinc-400 font-bold uppercase">Volume de Vendas</span>
             </div>
-            <h3 className="text-sm font-bold text-white mb-1">Gráficos Detalhados</h3>
-            <p className="text-xs text-zinc-500 mb-4">Em breve você terá acesso a gráficos de evolução.</p>
-            <Button disabled variant="outline" className="h-10 border-white/10 bg-white/5 text-zinc-500 text-xs uppercase tracking-wider">
-              Em Desenvolvimento
-            </Button>
           </div>
         </div>
-      )}
+      </div>
+
 
       <LojaFloatingNavIsland />
-    </main>
+    </main >
   );
 };
 

@@ -18,10 +18,10 @@ serve(async (req) => {
         )
 
         const { transaction_amount, description, payment_method_id, payer, metadata } = await req.json()
-        const MP_ACCESS_TOKEN = Deno.env.get('MERCADOPAGO_ACCESS_TOKEN')
+        const MP_ACCESS_TOKEN = await getConfig(supabaseClient, 'mercadopago_access_token') || Deno.env.get('MERCADOPAGO_ACCESS_TOKEN')
 
         if (!MP_ACCESS_TOKEN) {
-            throw new Error("MERCADOPAGO_ACCESS_TOKEN is not set")
+            throw new Error("MERCADOPAGO_ACCESS_TOKEN is not set in env or integration_configs")
         }
 
         // Prepare payment request
@@ -184,3 +184,12 @@ serve(async (req) => {
         )
     }
 })
+
+async function getConfig(supabase: any, key: string) {
+    const { data } = await supabase
+        .from('integration_configs')
+        .select('value')
+        .eq('key', key)
+        .maybeSingle()
+    return data?.value
+}

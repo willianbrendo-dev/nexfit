@@ -69,7 +69,7 @@ const LojaDashboardPage = () => {
       }
 
       setStore(storeData as StoreInfo);
-      setIsPro(storeData.subscription_plan === "PRO");
+      setIsPro(true); // Always unlocked
 
       // Count products
       const { count: pCount } = await supabase

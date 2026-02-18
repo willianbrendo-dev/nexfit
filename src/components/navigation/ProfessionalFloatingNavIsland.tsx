@@ -44,7 +44,7 @@ export const ProfessionalFloatingNavIsland = () => {
                 {navItems.map((item) => {
                     const Icon = item.icon;
                     const active = isActive(item.path);
-                    const isLocked = (item.label === "Chat" || item.label === "Agenda") && !canAccessEliteFeatures;
+                    const isLocked = false; // Always unlocked
 
                     return (
                         <button

@@ -4,6 +4,8 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { createMercadoPagoPayment } from "./mercadoPagoService";
+import { buildPixPayload } from "./pix";
+import QRCode from "qrcode";
 
 export type PixPaymentType =
     | "lp_unlock"           // Professional LP unlock (R$ 89,90)
@@ -23,6 +25,8 @@ export interface CreatePixPaymentParams {
     paymentMethod?: "pix" | "card"; // Optional override
     userEmail?: string; // Email for the payer
     userName?: string; // Full name for the payer
+    pixKey?: string; // Optional PIX key for manual generation
+    receiverName?: string; // Optional receiver name for manual generation
 }
 
 export interface PixPaymentResult {
@@ -96,7 +100,7 @@ export async function createPixPayment(
             throw new Error(error.message || "Falha ao criar pagamento automático. Tente novamente.");
         }
     } else {
-        // MANUAL PIX SYSTEM - As it was before
+        // MANUAL PIX SYSTEM - Now generating actual payloads
         try {
             // First, insert local record
             const { data: localPayment, error: localError } = await supabase
@@ -114,14 +118,28 @@ export async function createPixPayment(
 
             if (localError) throw localError;
 
-            // Generate payload locally if manual PIX config exists
-            // (The component usually handles the QR generation, but we provide empty strings 
-            // to maintain the interface, or we could fetch config here)
+            // Generate payload locally if manual PIX config is provided or defaults used
+            const finalPixKey = params.pixKey || "admin@nexfit.com";
+            const finalReceiverName = params.receiverName || "NEXFIT TECNOLOGIA";
+
+            const payload = buildPixPayload({
+                pixKey: finalPixKey,
+                receiverName: finalReceiverName,
+                amount,
+                description: description || `Pagamento Nexfit: ${paymentType}`,
+                txid: localPayment.id.substring(0, 25) // Keep TXID short as per EMVCo
+            });
+
+            // Generate QR Code Image (Data URL)
+            const qrCodeImage = await QRCode.toDataURL(payload, {
+                width: 400,
+                margin: 2
+            });
 
             return {
                 paymentId: localPayment.id,
-                pixPayload: "", // Component will generate based on its pixConfig
-                pixQrCode: "",
+                pixPayload: payload,
+                pixQrCode: qrCodeImage,
                 expiresAt: new Date(localPayment.expires_at),
             };
         } catch (error: any) {

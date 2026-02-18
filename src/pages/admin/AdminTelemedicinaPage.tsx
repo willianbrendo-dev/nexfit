@@ -25,6 +25,16 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
     Select,
     SelectContent,
     SelectItem,
@@ -74,7 +84,13 @@ export const AdminTelemedicinaPage = () => {
     const [profPhotoFile, setProfPhotoFile] = useState<File | null>(null);
     const [profCoverFile, setProfCoverFile] = useState<File | null>(null);
     const [isCreatingProf, setIsCreatingProf] = useState(false);
+    const [isUpdatingProf, setIsUpdatingProf] = useState(false);
     const [showProfDialog, setShowProfDialog] = useState(false);
+    const [showEditProfDialog, setShowEditProfDialog] = useState(false);
+    const [editingProfessional, setEditingProfessional] = useState<any>(null);
+    const [profToDelete, setProfToDelete] = useState<any>(null);
+    const [serviceToDelete, setServiceToDelete] = useState<any>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
 
     const { data: services = [], isLoading: servicesLoading } = useQuery<TelemedServico[]>({
@@ -134,11 +150,17 @@ export const AdminTelemedicinaPage = () => {
     };
 
     const handleDeleteService = async (id: string) => {
-        const { error } = await supabase.from("telemedicina_servicos").delete().eq("id", id);
-        if (error) toast({ title: "Erro", description: error.message, variant: "destructive" });
-        else {
+        setIsDeleting(true);
+        try {
+            const { error } = await supabase.from("telemedicina_servicos").delete().eq("id", id);
+            if (error) throw error;
             toast({ title: "Removido", description: "Serviço removido com sucesso." });
             queryClient.invalidateQueries({ queryKey: ["telemedicina-servicos"] });
+        } catch (e: any) {
+            toast({ title: "Erro", description: e.message, variant: "destructive" });
+        } finally {
+            setIsDeleting(false);
+            setServiceToDelete(null);
         }
     };
 
@@ -198,7 +220,8 @@ export const AdminTelemedicinaPage = () => {
                 user_id: userId,
                 name: newProfessional.nome,
                 crm_crp: newProfessional.crm_crp || null,
-                specialty: newProfessional.servico_id,
+                specialty: services.find(s => s.id === newProfessional.servico_id)?.nome || "Especialista",
+                telemedicina_servico_id: newProfessional.servico_id,
                 bio: newProfessional.bio || null,
                 base_price: newProfessional.preco_base ? Number(newProfessional.preco_base) : null,
                 email: newProfessional.email,
@@ -226,12 +249,50 @@ export const AdminTelemedicinaPage = () => {
         }
     };
 
+    const handleUpdateProfessional = async () => {
+        if (!editingProfessional || !editingProfessional.name || !editingProfessional.specialty) {
+            toast({ title: "Erro", description: "Nome e Especialidade são obrigatórios.", variant: "destructive" });
+            return;
+        }
+
+        setIsUpdatingProf(true);
+        try {
+            const { error } = await supabase.from("professionals").update({
+                name: editingProfessional.name,
+                crm_crp: editingProfessional.crm_crp || null,
+                specialty: services.find(s => s.id === editingProfessional.telemedicina_servico_id)?.nome || editingProfessional.specialty,
+                telemedicina_servico_id: editingProfessional.telemedicina_servico_id,
+                bio: editingProfessional.bio || null,
+                base_price: editingProfessional.base_price ? Number(editingProfessional.base_price) : null,
+                phone: editingProfessional.phone || null,
+                instagram: editingProfessional.instagram || null,
+            }).eq("id", editingProfessional.id);
+
+            if (error) throw error;
+
+            toast({ title: "Sucesso", description: `Profissional ${editingProfessional.name} atualizado!` });
+            setShowEditProfDialog(false);
+            setEditingProfessional(null);
+            queryClient.invalidateQueries({ queryKey: ["professionals"] });
+        } catch (e: any) {
+            toast({ title: "Erro", description: e.message, variant: "destructive" });
+        } finally {
+            setIsUpdatingProf(false);
+        }
+    };
+
     const handleDeleteProfessional = async (id: string) => {
-        const { error } = await supabase.from("professionals").delete().eq("id", id);
-        if (error) toast({ title: "Erro", description: error.message, variant: "destructive" });
-        else {
+        setIsDeleting(true);
+        try {
+            const { error } = await supabase.from("professionals").delete().eq("id", id);
+            if (error) throw error;
             toast({ title: "Removido", description: "Profissional removido com sucesso." });
             queryClient.invalidateQueries({ queryKey: ["professionals"] });
+        } catch (e: any) {
+            toast({ title: "Erro", description: e.message, variant: "destructive" });
+        } finally {
+            setIsDeleting(false);
+            setProfToDelete(null);
         }
     };
 
@@ -317,7 +378,7 @@ export const AdminTelemedicinaPage = () => {
                                                     <TableCell className="font-medium text-white">{service.nome}</TableCell>
                                                     <TableCell className="text-muted-foreground">{service.slug}</TableCell>
                                                     <TableCell className="text-right">
-                                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:bg-red-500/10" onClick={() => handleDeleteService(service.id)}>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:bg-red-500/10" onClick={() => setServiceToDelete(service)}>
                                                             <Trash2 className="h-4 w-4" />
                                                         </Button>
                                                     </TableCell>
@@ -357,17 +418,15 @@ export const AdminTelemedicinaPage = () => {
                                         </div>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Especialidade *</Label>
+                                        <Label>Serviço de Telemedicina *</Label>
                                         <Select onValueChange={v => setNewProfessional({ ...newProfessional, servico_id: v })}>
-                                            <SelectTrigger className="bg-black/20 border-white/10"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                                            <SelectTrigger className="bg-black/20 border-white/10"><SelectValue placeholder="Selecione o serviço..." /></SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="personal_trainer">Personal Trainer</SelectItem>
-                                                <SelectItem value="crossfit_trainer">Treinador de CrossFit</SelectItem>
-                                                <SelectItem value="nutritionist">Nutricionista</SelectItem>
-                                                <SelectItem value="sports_nutritionist">Nutricionista Esportivo</SelectItem>
-                                                <SelectItem value="physiotherapist">Fisioterapeuta</SelectItem>
-                                                <SelectItem value="psychologist">Psicólogo</SelectItem>
-                                                <SelectItem value="doctor">Médico</SelectItem>
+                                                {services.map(service => (
+                                                    <SelectItem key={service.id} value={service.id}>
+                                                        {service.nome}
+                                                    </SelectItem>
+                                                ))}
                                             </SelectContent>
                                         </Select>
                                     </div>
@@ -440,17 +499,35 @@ export const AdminTelemedicinaPage = () => {
                                                     <TableCell className="font-medium text-white">
                                                         <div className="flex items-center gap-2">
                                                             <User className="h-4 w-4 text-muted-foreground" />
-                                                            {prof.nome}
+                                                            {prof.name}
                                                         </div>
                                                     </TableCell>
                                                     <TableCell className="text-muted-foreground">{prof.crm_crp || "-"}</TableCell>
                                                     <TableCell className="text-muted-foreground">
-                                                        {prof.preco_base ? `R$ ${prof.preco_base.toFixed(2)}` : "A combinar"}
+                                                        {prof.base_price ? `R$ ${Number(prof.base_price).toFixed(2)}` : "A combinar"}
                                                     </TableCell>
                                                     <TableCell className="text-right">
-                                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:bg-red-500/10" onClick={() => handleDeleteProfessional(prof.id)}>
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </Button>
+                                                        <div className="flex justify-end gap-2">
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-8 w-8 text-blue-400 hover:bg-blue-500/10"
+                                                                onClick={() => {
+                                                                    setEditingProfessional(prof);
+                                                                    setShowEditProfDialog(true);
+                                                                }}
+                                                            >
+                                                                <Edit className="h-4 w-4" />
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-8 w-8 text-red-400 hover:bg-red-500/10"
+                                                                onClick={() => setProfToDelete(prof)}
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        </div>
                                                     </TableCell>
                                                 </TableRow>
                                             ))
@@ -462,6 +539,142 @@ export const AdminTelemedicinaPage = () => {
                     </Card>
                 </TabsContent>
             </Tabs>
+
+            {/* Delete Professional AlertDialog */}
+            <AlertDialog open={!!profToDelete} onOpenChange={(open) => !open && setProfToDelete(null)}>
+                <AlertDialogContent className="bg-[#1a1a1a] border-white/10 text-white">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Excluir Profissional</AlertDialogTitle>
+                        <AlertDialogDescription className="text-muted-foreground">
+                            Tem certeza que deseja excluir o profissional <strong className="text-white">{profToDelete?.name}</strong>? Esta ação não pode ser desfeita.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isDeleting} className="border-white/10 hover:bg-white/5">Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => profToDelete && handleDeleteProfessional(profToDelete.id)}
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                            disabled={isDeleting}
+                        >
+                            {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                            Excluir
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Delete Service AlertDialog */}
+            <AlertDialog open={!!serviceToDelete} onOpenChange={(open) => !open && setServiceToDelete(null)}>
+                <AlertDialogContent className="bg-[#1a1a1a] border-white/10 text-white">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Excluir Serviço</AlertDialogTitle>
+                        <AlertDialogDescription className="text-muted-foreground">
+                            Tem certeza que deseja excluir o serviço <strong className="text-white">{serviceToDelete?.nome}</strong>? Esta ação não pode ser desfeita.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isDeleting} className="border-white/10 hover:bg-white/5">Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => serviceToDelete && handleDeleteService(serviceToDelete.id)}
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                            disabled={isDeleting}
+                        >
+                            {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                            Excluir
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Edit Professional Dialog */}
+            <Dialog open={showEditProfDialog} onOpenChange={setShowEditProfDialog}>
+                <DialogContent className="bg-[#1a1a1a] border-white/10 text-white max-w-2xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader><DialogTitle>Editar Profissional</DialogTitle></DialogHeader>
+                    {editingProfessional && (
+                        <div className="grid gap-4 py-4">
+                            <div className="space-y-2">
+                                <Label>Nome Completo *</Label>
+                                <Input
+                                    value={editingProfessional.name}
+                                    onChange={e => setEditingProfessional({ ...editingProfessional, name: e.target.value })}
+                                    className="bg-black/20 border-white/10"
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>CRM/CRP/CREF</Label>
+                                    <Input
+                                        value={editingProfessional.crm_crp || ""}
+                                        onChange={e => setEditingProfessional({ ...editingProfessional, crm_crp: e.target.value })}
+                                        className="bg-black/20 border-white/10"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Preço Base (R$)</Label>
+                                    <Input
+                                        type="number"
+                                        step="0.01"
+                                        value={editingProfessional.base_price || ""}
+                                        onChange={e => setEditingProfessional({ ...editingProfessional, base_price: e.target.value })}
+                                        className="bg-black/20 border-white/10"
+                                    />
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Serviço de Telemedicina *</Label>
+                                <Select
+                                    value={editingProfessional.telemedicina_servico_id}
+                                    onValueChange={v => setEditingProfessional({ ...editingProfessional, telemedicina_servico_id: v })}
+                                >
+                                    <SelectTrigger className="bg-black/20 border-white/10"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        {services.map(service => (
+                                            <SelectItem key={service.id} value={service.id}>
+                                                {service.nome}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Bio/Descrição</Label>
+                                <textarea
+                                    value={editingProfessional.bio || ""}
+                                    onChange={e => setEditingProfessional({ ...editingProfessional, bio: e.target.value })}
+                                    className="w-full min-h-[80px] rounded-md bg-black/20 border border-white/10 px-3 py-2 text-sm text-white"
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Telefone</Label>
+                                    <Input
+                                        value={editingProfessional.phone || ""}
+                                        onChange={e => setEditingProfessional({ ...editingProfessional, phone: e.target.value })}
+                                        className="bg-black/20 border-white/10"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Instagram</Label>
+                                    <Input
+                                        value={editingProfessional.instagram || ""}
+                                        onChange={e => setEditingProfessional({ ...editingProfessional, instagram: e.target.value })}
+                                        className="bg-black/20 border-white/10"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => {
+                            setShowEditProfDialog(false);
+                            setEditingProfessional(null);
+                        }}>Cancelar</Button>
+                        <Button onClick={handleUpdateProfessional} disabled={isUpdatingProf} className="bg-green-600">
+                            {isUpdatingProf ? <Loader2 className="animate-spin" /> : "Salvar Alterações"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };

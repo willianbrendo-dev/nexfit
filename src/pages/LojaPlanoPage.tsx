@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { LojaFloatingNavIsland } from "@/components/navigation/LojaFloatingNavIsland";
 import {
     Dialog,
@@ -180,43 +181,48 @@ export default function LojaPlanoPage() {
 
     return (
         <main className="min-h-screen bg-black px-4 pb-28 pt-8 safe-bottom-floating-nav relative overflow-hidden">
-            {/* Background Decoration */}
-            <div className="absolute top-0 right-0 h-64 w-64 rounded-full bg-primary/5 blur-[80px] pointer-events-none" />
-            <div className="absolute bottom-0 left-0 h-64 w-64 rounded-full bg-primary/5 blur-[80px] pointer-events-none" />
+            {/* Premium Background Decoration */}
+            <div className="absolute inset-0 z-0">
+                <div className="absolute top-0 right-[-10%] h-[500px] w-[500px] rounded-full bg-primary/10 blur-[120px] pointer-events-none" />
+                <div className="absolute bottom-[-10%] left-[-10%] h-[500px] w-[500px] rounded-full bg-primary/5 blur-[120px] pointer-events-none" />
+            </div>
 
-            <header className="mb-6 relative z-10">
-                <p className="text-xs font-bold uppercase tracking-[0.3em] text-zinc-400">Assinatura</p>
-                <h1 className="mt-1 text-2xl font-black uppercase tracking-tight text-white leading-none">Meu Plano</h1>
+            <header className="mb-8 relative z-10">
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary italic">Assinatura Nexfit</p>
+                <h1 className="mt-1 text-3xl font-black italic uppercase tracking-tighter text-white leading-none">Minha Loja</h1>
             </header>
 
             <div className="space-y-6 relative z-10">
-                <div className="relative overflow-hidden rounded-[32px] border border-white/5 bg-white/[0.03] p-6 backdrop-blur-xl">
-                    <div className="mb-6 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/5 border border-white/10">
-                                <CreditCard className="h-6 w-6 text-primary" />
+                <div className="relative overflow-hidden rounded-[2.5rem] border border-white/5 bg-black/40 p-8 backdrop-blur-2xl transition-all duration-300 hover:border-primary/30">
+                    <div className="absolute -inset-0.5 bg-gradient-to-b from-primary/10 to-transparent opacity-50" />
+
+                    <div className="relative z-10 mb-8 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/20 ring-1 ring-primary/20 shadow-lg">
+                                <CreditCard className="h-7 w-7 text-primary" />
                             </div>
                             <div>
-                                <h2 className="text-base font-bold text-white uppercase tracking-tight">Status do Plano</h2>
+                                <h2 className="text-xl font-black italic uppercase tracking-tighter text-white leading-none">Status de Assinatura</h2>
+                                <p className="mt-1 text-[10px] font-medium text-zinc-500 uppercase tracking-widest">Controle sua loja NEXFIT</p>
                             </div>
                         </div>
-                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${isPro ? "bg-primary/20 text-primary border-primary/20" : "bg-zinc-800 text-zinc-400 border-white/5"}`}>
-                            {isPro ? "PLANO PRO" : "PLANO FREE"}
-                        </span>
+                        <Badge variant="outline" className={`px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border-primary/20 ${isPro ? "bg-primary text-black" : "bg-zinc-900 text-zinc-400"}`}>
+                            {isPro ? "ELITE PRO" : "PLANO FREE"}
+                        </Badge>
                     </div>
 
-                    <div className="space-y-4">
+                    <div className="relative z-10 space-y-6">
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1 p-3 rounded-2xl bg-white/[0.02] border border-white/5">
-                                <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Loja</p>
-                                <p className="text-sm font-bold text-white truncate">{store?.nome || "Carregando..."}</p>
+                            <div className="space-y-1.5 p-4 rounded-3xl bg-white/[0.03] border border-white/5 backdrop-blur-sm">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic">Estabelecimento</p>
+                                <p className="text-sm font-bold text-white truncate uppercase tracking-tight">{store?.nome || "Carregando..."}</p>
                             </div>
-                            <div className="space-y-1 p-3 rounded-2xl bg-white/[0.02] border border-white/5">
-                                <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Vencimento</p>
-                                <p className="text-sm font-bold text-white">
+                            <div className="space-y-1.5 p-4 rounded-3xl bg-white/[0.03] border border-white/5 backdrop-blur-sm">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic">Vencimento</p>
+                                <p className="text-sm font-bold text-white tracking-tight">
                                     {store?.plan_expires_at
                                         ? new Date(store.plan_expires_at).toLocaleDateString("pt-BR")
-                                        : "Ilimitado (Free)"}
+                                        : "ILIMITADO"}
                                 </p>
                             </div>
                         </div>
@@ -225,9 +231,12 @@ export default function LojaPlanoPage() {
                             <Button
                                 onClick={handleInitiateUpgrade}
                                 disabled={verifying}
-                                className="w-full h-14 rounded-2xl bg-primary text-black font-black uppercase tracking-widest text-[11px] hover:bg-primary/90 shadow-[0_0_20px_rgba(86,255,2,0.2)] hover:shadow-[0_0_30px_rgba(86,255,2,0.4)] transition-all"
+                                className="group relative w-full h-16 rounded-[1.8rem] bg-primary text-black font-black uppercase tracking-[0.15em] text-xs hover:bg-primary/90 shadow-2xl shadow-primary/20 transition-all overflow-hidden"
                             >
-                                {verifying ? <Loader2 className="animate-spin h-5 w-5" /> : `Mudar para o Plano PRO - R$ ${PLAN_PRICE.toFixed(2)}`}
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                                <span className="relative z-10 flex items-center justify-center gap-2">
+                                    {verifying ? <Loader2 className="animate-spin h-5 w-5" /> : `Mudar para ELITE PRO - R$ ${PLAN_PRICE.toFixed(2)}`}
+                                </span>
                             </Button>
                         )}
                     </div>
