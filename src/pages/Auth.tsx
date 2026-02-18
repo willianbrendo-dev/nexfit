@@ -330,7 +330,7 @@ const AuthPage = () => {
         { loading: "Entrando...", success: "Bem-vindo de volta!", error: false }
       ).catch((err) => {
         const mapped = mapLoginError(err);
-        if (mapped.code === "EMAIL_NOT_CONFIRMED") setVerifyEmail(values.email);
+        if (mapped.code === "EMAIL_NOT_CONFIRMED") setOtpEmail(values.email);
         console.error("[auth/login]", { code: mapped.code, original: err });
         toast({
           title: mapped.code === "INVALID_CREDENTIALS" ? "Dados incorretos" : "Erro ao entrar",

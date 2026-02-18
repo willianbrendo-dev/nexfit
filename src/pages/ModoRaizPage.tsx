@@ -250,7 +250,7 @@ export default function ModoRaizPage() {
               return (
                 <div
                   key={r.id}
-                  className="group relative overflow-hidden rounded-3xl border border-white/5 bg-white/[0.03] backdrop-blur-sm hover:border-white/10 hover:bg-white/[0.05] transition-all"
+                  className="group relative overflow-hidden rounded-[24px] border border-white/5 bg-white/[0.03] backdrop-blur-md hover:border-white/10 hover:bg-white/[0.05] transition-all"
                 >
                   {/* Active indicator */}
                   {r.is_active && (

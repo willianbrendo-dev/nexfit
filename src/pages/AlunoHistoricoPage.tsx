@@ -239,61 +239,74 @@ const AlunoHistoricoPage = () => {
 
   return (
     <main className="safe-bottom-main flex min-h-screen flex-col bg-background px-4 pt-6 pb-32">
-      <header className="mb-4 flex items-center gap-3">
+      <header className="mb-6 flex items-center gap-3">
         <BackIconButton to="/aluno/perfil" />
         <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-accent-foreground/80">Área do Aluno</p>
-          <h1 className="mt-1 page-title-gradient text-2xl font-semibold">Seu histórico</h1>
+          <p className="text-[10px] uppercase tracking-[0.3em] font-black text-primary/80">Área do Aluno</p>
+          <h1 className="mt-1 page-title-gradient text-2xl font-black uppercase italic tracking-tighter">Seu Histórico</h1>
         </div>
       </header>
 
-      <section className="space-y-3">
-        <div className="rounded-xl border border-border/60 bg-card/80 p-3">
-          <div className="flex items-center justify-between">
+      <section className="space-y-4">
+        {/* Filtros Container */}
+        <div className="rounded-[24px] border border-white/5 bg-white/[0.03] p-4 backdrop-blur-xl">
+          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4" />
-              <p className="text-xs font-medium text-foreground">Filtros</p>
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/5 text-primary">
+                <Filter className="h-4 w-4" />
+              </div>
+              <p className="text-xs font-black uppercase tracking-wider text-white">Filtros</p>
             </div>
-            <Button type="button" variant="ghost" size="sm" onClick={clearFilters} className="text-[11px]">
-              Limpar
-            </Button>
+            {(activityType !== "all" || privacy !== "all" || startDate.getTime() !== defaultStart.getTime()) && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={clearFilters}
+                className="h-7 px-3 text-[10px] font-bold uppercase text-muted-foreground hover:bg-white/10 hover:text-white rounded-lg"
+              >
+                Limpar
+              </Button>
+            )}
           </div>
 
-          <Separator className="my-3" />
+          <Separator className="bg-white/5 mb-4" />
 
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Popover>
               <PopoverTrigger asChild>
-                <Button type="button" variant="secondary" className="justify-start gap-2 text-left">
-                  <CalendarIcon className="h-4 w-4" />
-                  <span className="truncate text-xs">{dateLabel}</span>
+                <Button type="button" variant="outline" className="justify-start gap-2 text-left h-11 rounded-xl border-white/10 bg-black/20 hover:bg-white/5 hover:text-white border-transparent">
+                  <CalendarIcon className="h-4 w-4 text-primary" />
+                  <span className="truncate text-xs font-medium text-zinc-300">{dateLabel}</span>
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-3" align="start">
+              <PopoverContent className="w-auto p-3 border-white/10 bg-zinc-950 text-white" align="start">
                 <div className="space-y-2">
-                  <p className="text-xs font-medium text-foreground">Data início</p>
+                  <p className="text-xs font-bold uppercase text-zinc-500">Data início</p>
                   <Calendar
                     mode="single"
                     selected={startDate}
                     onSelect={(d) => d && setStartDate(startOfDay(d))}
                     initialFocus
+                    className="rounded-md border border-white/5 bg-black/50"
                   />
-                  <Separator />
-                  <p className="text-xs font-medium text-foreground">Data fim</p>
+                  <Separator className="bg-white/10" />
+                  <p className="text-xs font-bold uppercase text-zinc-500">Data fim</p>
                   <Calendar
                     mode="single"
                     selected={endDate}
                     onSelect={(d) => d && setEndDate(endOfDay(d))}
+                    className="rounded-md border border-white/5 bg-black/50"
                   />
                 </div>
               </PopoverContent>
             </Popover>
 
             <Select value={activityType} onValueChange={setActivityType}>
-              <SelectTrigger>
+              <SelectTrigger className="h-11 rounded-xl border-white/10 bg-black/20 text-xs font-medium text-zinc-300 focus:ring-primary/20">
                 <SelectValue placeholder="Tipo" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="border-white/10 bg-zinc-950 text-white">
                 <SelectItem value="all">Todos os tipos</SelectItem>
                 {ACTIVITY_TYPES.map((t) => (
                   <SelectItem key={t.id} value={t.id}>
@@ -304,30 +317,37 @@ const AlunoHistoricoPage = () => {
             </Select>
 
             <Select value={privacy} onValueChange={setPrivacy}>
-              <SelectTrigger>
+              <SelectTrigger className="h-11 rounded-xl border-white/10 bg-black/20 text-xs font-medium text-zinc-300 focus:ring-primary/20">
                 <SelectValue placeholder="Privacidade" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="border-white/10 bg-zinc-950 text-white">
                 <SelectItem value="all">Todas</SelectItem>
                 <SelectItem value="public">Públicas</SelectItem>
                 <SelectItem value="private">Privadas</SelectItem>
               </SelectContent>
             </Select>
           </div>
-
-          <p className="mt-2 text-[11px] text-muted-foreground">Dica: use o filtro de datas para não carregar seu histórico inteiro.</p>
         </div>
       </section>
 
-      <section className="flex-1 space-y-2 pb-4">
-        <h2 className="text-sm font-medium text-foreground">Atividades registradas</h2>
-        <p className="text-[11px] text-muted-foreground">Resultados do período selecionado, da mais recente para a mais antiga.</p>
+      <section className="flex-1 space-y-3 mt-6">
+        <div className="flex items-center justify-between px-1">
+          <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">Atividades registradas</h2>
+          <span className="text-[10px] font-bold text-zinc-600">{atividades.length} resultados</span>
+        </div>
 
-        <div className="mt-2 space-y-2">
+        <div className="space-y-3">
           {loading ? (
-            <p className="text-[11px] text-muted-foreground">Carregando atividades...</p>
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-20 animate-pulse rounded-[24px] bg-white/5 border border-white/5" />
+              ))}
+            </div>
           ) : atividades.length === 0 ? (
-            <p className="text-[11px] text-muted-foreground">Nenhuma atividade encontrada nesse período.</p>
+            <div className="flex flex-col items-center justify-center py-10 gap-4 rounded-[32px] border border-dashed border-white/10 bg-white/[0.02]">
+              <Activity className="h-8 w-8 text-zinc-700" />
+              <p className="text-xs font-medium text-zinc-500">Nenhuma atividade encontrada.</p>
+            </div>
           ) : (
             atividades.map((sessao) => {
               const tipo = getActivityTypeById(sessao.activity_type);
@@ -336,48 +356,49 @@ const AlunoHistoricoPage = () => {
               const dataBase = sessao.ended_at ?? sessao.started_at;
               const data = dataBase ? new Date(dataBase) : null;
               const dataFormatada = data
-                ? data.toLocaleDateString("pt-BR", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  year: "numeric",
-                })
-                : "Data não informada";
+                ? format(data, "dd 'de' MMMM", { locale: ptBR })
+                : "Data desconhecida";
+
+              const horaFormatada = data ? format(data, "HH:mm", { locale: ptBR }) : "";
 
               const duracaoTexto = formatDuration(sessao.duration_seconds, sessao.started_at, sessao.ended_at);
-
-              const parts: string[] = [dataFormatada, duracaoTexto];
-
-              if (sessao.distance_km != null && sessao.distance_km > 0) {
-                parts.push(formatDistanceKm(sessao.distance_km));
-              }
-
-              if (sessao.calories != null && sessao.calories > 0) {
-                parts.push(`${Math.round(sessao.calories)} kcal`);
-              }
-
-              const linhaSecundaria = parts.join(" • ");
 
               return (
                 <div
                   key={sessao.id}
-                  className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-card/80 px-3 py-2 text-left text-xs transition-colors hover:border-primary"
+                  onClick={() => navigate(`/aluno/historico/${sessao.id}`)}
+                  className="group relative overflow-hidden rounded-[24px] border border-white/5 bg-white/[0.03] p-4 transition-all hover:bg-white/[0.06] active:scale-[0.98] cursor-pointer backdrop-blur-md"
                 >
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/aluno/historico/${sessao.id}`)}
-                    className="flex flex-1 items-center gap-3 text-left"
-                  >
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-accent/50">
-                      <Activity className="h-4 w-4" />
-                    </div>
-                    <div className="flex min-w-0 flex-col">
-                      <span className="truncate text-xs font-medium text-foreground">{nomeAtividade}</span>
-                      <span className="truncate text-[11px] text-muted-foreground">{linhaSecundaria}</span>
-                    </div>
-                  </button>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-4 min-w-0">
+                      {/* Icon Box */}
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-white/10 to-white/5 border border-white/10 text-primary shadow-inner">
+                        <Activity className="h-5 w-5" />
+                      </div>
 
-                  <div className="ml-2 flex items-center gap-2">
-                    <span className="hidden text-[11px] text-muted-foreground sm:inline">Ver detalhes</span>
+                      <div className="flex flex-col gap-0.5 min-w-0">
+                        <span className="truncate text-sm font-black text-white uppercase italic tracking-tight">
+                          {nomeAtividade}
+                        </span>
+                        <div className="flex items-center gap-1.5 text-[10px] font-medium text-zinc-400">
+                          <span className="text-zinc-500">{dataFormatada}</span>
+                          <span className="w-0.5 h-0.5 rounded-full bg-zinc-600" />
+                          <span>{horaFormatada}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col items-end gap-0.5 shrink-0 text-right">
+                      <span className="text-xs font-black text-white">{duracaoTexto}</span>
+                      <div className="flex items-center gap-2 text-[10px] text-zinc-400">
+                        {sessao.distance_km != null && sessao.distance_km > 0 && (
+                          <span>{formatDistanceKm(sessao.distance_km)}</span>
+                        )}
+                        {sessao.calories != null && sessao.calories > 0 && (
+                          <span className="font-bold text-primary">{Math.round(sessao.calories)} kcal</span>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               );
@@ -388,13 +409,18 @@ const AlunoHistoricoPage = () => {
             <div className="pt-2">
               <Button
                 type="button"
-                variant="secondary"
-                className="w-full"
+                variant="ghost"
+                className="w-full text-xs font-bold uppercase tracking-widest text-zinc-500 hover:text-white h-12 rounded-2xl border border-dashed border-white/10 hover:border-white/20 hover:bg-white/5"
                 disabled={!hasMore || loadingMore}
                 onClick={handleLoadMore}
-                loading={loadingMore}
               >
-                {hasMore ? "Carregar mais" : "Fim do histórico"}
+                {loadingMore ? (
+                  <span className="animate-pulse">Carregando...</span>
+                ) : hasMore ? (
+                  "Carregar mais antigas"
+                ) : (
+                  "Fim do histórico"
+                )}
               </Button>
             </div>
           )}
