@@ -298,9 +298,10 @@ const AlunoOnboardingPage = () => {
         focusGroupLabel: FOCUS_GROUPS.find((g) => g.value === values.focus_group)?.label ?? String(values.focus_group),
       });
     } catch (err: any) {
+      console.error("Onboarding error details:", err);
       toast({
         title: "Erro ao salvar onboarding",
-        description: err?.message ?? "Tente novamente em instantes.",
+        description: err?.message || "Tente novamente em instantes.", // Fixed ?? to || for broader fallback
         variant: "destructive",
       });
     } finally {
