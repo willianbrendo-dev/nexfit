@@ -44,6 +44,15 @@ type InternalStore = {
     created_at: string;
 };
 
+const STORE_TYPE_LABELS: Record<string, string> = {
+    suplementos: "Suplementos",
+    roupas: "Roupas Fitness",
+    artigos: "Artigos Esportivos",
+    nutricao: "Comida Fitness",
+    equipamentos: "Equipamentos", // Legacy
+    servicos: "Serviços" // Legacy
+};
+
 export const AdminStoresPage = () => {
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -196,10 +205,9 @@ export const AdminStoresPage = () => {
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="suplementos">Suplementos</SelectItem>
-                                            <SelectItem value="equipamentos">Equipamentos</SelectItem>
-                                            <SelectItem value="roupas">Roupas</SelectItem>
-                                            <SelectItem value="servicos">Serviços</SelectItem>
-                                            <SelectItem value="nutricao">Nutrição</SelectItem>
+                                            <SelectItem value="roupas">Roupas Fitness</SelectItem>
+                                            <SelectItem value="artigos">Artigos Esportivos</SelectItem>
+                                            <SelectItem value="nutricao">Comida Fitness</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -314,7 +322,7 @@ export const AdminStoresPage = () => {
                                             </TableCell>
                                             <TableCell>
                                                 <Badge variant="outline" className="border-white/10 bg-white/5 capitalize">
-                                                    {store.store_type}
+                                                    {STORE_TYPE_LABELS[store.store_type] || store.store_type}
                                                 </Badge>
                                             </TableCell>
                                             <TableCell>
@@ -330,7 +338,7 @@ export const AdminStoresPage = () => {
                                             <TableCell className="text-right">
                                                 <Button
                                                     variant="ghost"
-                                                    size="icone"
+                                                    size="icon"
                                                     className="h-8 w-8 text-muted-foreground hover:text-white hover:bg-white/10"
                                                     onClick={() => toggleStoreStatus(store.id, store.is_active)}
                                                     title={store.is_active ? "Desativar" : "Ativar"}
