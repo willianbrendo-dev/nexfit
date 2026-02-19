@@ -9,6 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Package, Clock, CheckCircle2, Truck, MapPin, Calendar, Store, CreditCard, Tag, ShoppingBag } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { getPaymentByReference, checkPixPaymentStatus } from "@/lib/pixPaymentTracking";
+import { QrCode, Copy, ExternalLink, Loader2 } from "lucide-react";
+import QRCodeLib from "qrcode";
 
 interface OrderItem {
     id: string;
@@ -43,6 +46,10 @@ export default function MarketplaceOrderDetailPage() {
     const { toast } = useToast();
     const [order, setOrder] = useState<Order | null>(null);
     const [loading, setLoading] = useState(true);
+    const [paymentInfo, setPaymentInfo] = useState<any>(null);
+    const [verifyingPayment, setVerifyingPayment] = useState(false);
+    const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
+    const [copied, setCopied] = useState(false);
 
     useEffect(() => {
         if (!user || !orderId) {
@@ -116,6 +123,54 @@ export default function MarketplaceOrderDetailPage() {
 
         loadOrder();
     }, [orderId, user, navigate, toast]);
+
+    useEffect(() => {
+        if (order?.status === "pending") {
+            const loadPayment = async () => {
+                try {
+                    const payment = await getPaymentByReference(order.id, "marketplace_order");
+                    if (payment) {
+                        setPaymentInfo(payment);
+                        if (payment.pix_qr_code) {
+                            setQrCodeUrl(payment.pix_qr_code);
+                        } else if (payment.pix_payload) {
+                            const url = await QRCodeLib.toDataURL(payment.pix_payload);
+                            setQrCodeUrl(url);
+                        }
+                    }
+                } catch (error) {
+                    console.error("Error loading payment info:", error);
+                }
+            };
+            loadPayment();
+        }
+    }, [order]);
+
+    const handleVerifyPayment = async () => {
+        if (!paymentInfo?.id) return;
+        setVerifyingPayment(true);
+        try {
+            const status = await checkPixPaymentStatus(paymentInfo.id);
+            if (status === "paid") {
+                toast({ title: "Pagamento confirmado!" });
+                window.location.reload(); // Simple way to refresh status
+            } else {
+                toast({ title: "Pagamento ainda pendente." });
+            }
+        } catch (error: any) {
+            toast({ title: "Erro ao verificar", description: error.message, variant: "destructive" });
+        } finally {
+            setVerifyingPayment(false);
+        }
+    };
+
+    const handleCopyPix = async () => {
+        if (!paymentInfo?.pix_payload) return;
+        await navigator.clipboard.writeText(paymentInfo.pix_payload);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+        toast({ title: "Copiado!" });
+    };
 
     const getStatusInfo = (status: string) => {
         switch (status) {
@@ -235,8 +290,8 @@ export default function MarketplaceOrderDetailPage() {
                                         <div className="relative">
                                             <div
                                                 className={`flex h-10 w-10 items-center justify-center rounded-full border-2 transition-all ${step.completed
-                                                        ? "border-primary bg-primary/20"
-                                                        : "border-white/10 bg-white/5"
+                                                    ? "border-primary bg-primary/20"
+                                                    : "border-white/10 bg-white/5"
                                                     }`}
                                             >
                                                 <StepIcon
@@ -385,6 +440,75 @@ export default function MarketplaceOrderDetailPage() {
                         </div>
                     </CardContent>
                 </Card>
+
+                {/* Pending Payment Section */}
+                {order.status === "pending" && paymentInfo && (
+                    <Card className="border-primary/30 bg-primary/5 shadow-[0_0_20px_rgba(var(--primary-rgb),0.1)]">
+                        <CardContent className="p-6 text-center space-y-4">
+                            <h2 className="text-lg font-black uppercase italic tracking-tighter text-primary flex items-center justify-center gap-2">
+                                <Clock className="h-5 w-5 animate-pulse" />
+                                Pagamento Pendente
+                            </h2>
+
+                            {paymentInfo.payment_method === 'pix' ? (
+                                <>
+                                    {qrCodeUrl && (
+                                        <div className="mx-auto w-48 h-48 bg-white p-2 rounded-2xl shadow-xl">
+                                            <img src={qrCodeUrl} alt="QR Code" className="w-full h-full" />
+                                        </div>
+                                    )}
+                                    <p className="text-xs text-muted-foreground max-w-[200px] mx-auto uppercase font-bold tracking-tight">
+                                        Escaneie o QR Code ou use o Pix Copia e Cola abaixo
+                                    </p>
+                                    <div className="flex gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="flex-1 rounded-xl h-11 font-bold border-white/10"
+                                            onClick={handleCopyPix}
+                                        >
+                                            {copied ? <CheckCircle2 className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
+                                            {copied ? "Copiado!" : "Copiar Pix"}
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            className="flex-1 rounded-xl h-11 font-bold shadow-lg shadow-primary/20"
+                                            onClick={handleVerifyPayment}
+                                            disabled={verifyingPayment}
+                                        >
+                                            {verifyingPayment ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                                            Já paguei
+                                        </Button>
+                                    </div>
+                                </>
+                            ) : paymentInfo.payment_url ? (
+                                <div className="space-y-4">
+                                    <p className="text-sm text-muted-foreground uppercase font-bold">Pagamento via Cartão</p>
+                                    <Button
+                                        className="w-full h-12 rounded-xl font-bold bg-[#009ee3] hover:bg-[#008ad0] text-white shadow-lg shadow-blue-500/20"
+                                        onClick={() => window.open(paymentInfo.payment_url, '_blank')}
+                                    >
+                                        <ExternalLink className="h-4 w-4 mr-2" />
+                                        Concluir no Mercado Pago
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="text-[10px] text-muted-foreground uppercase tracking-widest"
+                                        onClick={handleVerifyPayment}
+                                        disabled={verifyingPayment}
+                                    >
+                                        {verifyingPayment ? "Verificando..." : "Verificar status agora"}
+                                    </Button>
+                                </div>
+                            ) : (
+                                <p className="text-sm text-muted-foreground italic">
+                                    Informações de pagamento indisponíveis no momento.
+                                </p>
+                            )}
+                        </CardContent>
+                    </Card>
+                )}
 
                 {/* Actions */}
                 <div className="space-y-2">

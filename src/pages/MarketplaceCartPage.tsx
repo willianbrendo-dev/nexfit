@@ -343,19 +343,6 @@ export default function MarketplaceCartPage() {
       return;
     }
 
-    // Generate PIX payload
-    if (pixConfig?.pix_key && total > 0) {
-      const payload = buildPixPayload({
-        pixKey: pixConfig.pix_key,
-        receiverName: pixConfig.receiver_name,
-        amount: total,
-        description: `Pedido ${storeName}`,
-        city: pixConfig.city,
-      });
-      setPixPayload(payload);
-      QRCodeLib.toDataURL(payload, { width: 256 }).then(setPixQrDataUrl).catch(() => { });
-    }
-
     setCheckoutStep("checkout");
   };
 
@@ -368,12 +355,11 @@ export default function MarketplaceCartPage() {
   };
 
   const handleConfirmOrder = async () => {
-    if (!orderId || !user || !storeId || !pixConfig) return;
+    if (!orderId || !user || !storeId) return;
     setSubmitting(true);
 
     try {
-      // Manual system: Use the locally generated pixPayload
-      // Update order with payment info
+      // 1. Update order with address and totals
       await (supabase as any)
         .from("marketplace_orders")
         .update({
@@ -385,12 +371,31 @@ export default function MarketplaceCartPage() {
           coupon_id: selectedCoupon?.id ?? null,
           delivery_address: deliveryAddress.trim(),
           delivery_city: deliveryCity.trim(),
-          pix_payload: pixPayload, // Use the local payload
-          payment_method: 'pix',
+          payment_method: paymentMethod,
         })
         .eq("id", orderId);
 
-      // Mark coupon as used
+      // 2. Create automated payment via Unified Service
+      console.log("[Cart] Creating payment via service:", paymentMethod);
+      const result = await createPixPayment({
+        userId: user.id,
+        userEmail: user.email,
+        userName: user.user_metadata?.full_name || user.user_metadata?.nome || "Cliente",
+        amount: total,
+        paymentType: "marketplace_order",
+        referenceId: orderId,
+        description: `Pedido ${storeName} #${orderId.slice(0, 8)}`,
+        paymentMethod: paymentMethod,
+      });
+
+      // 3. Update state with payment info
+      setPixPaymentId(result.paymentId);
+      setPixPayload(result.pixPayload);
+      setPixQrDataUrl(result.pixQrCode);
+      setPaymentUrl(result.paymentUrl || null);
+      setPaymentStatus("pending");
+
+      // 4. Mark coupon as used
       if (selectedCoupon && !isVipCouponApplied) {
         await (supabase as any)
           .from("marketplace_coupons")
@@ -398,8 +403,10 @@ export default function MarketplaceCartPage() {
           .eq("id", selectedCoupon.id);
       }
 
-      setPaymentStatus("pending");
-      toast({ title: "Pedido criado!", description: "Aguardando confirmação do pagamento PIX." });
+      toast({
+        title: "Pedido criado!",
+        description: paymentMethod === 'pix' ? "Aguardando pagamento PIX." : "Aguardando pagamento via cartão."
+      });
     } catch (error: any) {
       console.error("Error confirming order:", error);
       toast({ title: "Erro ao finalizar pedido", description: error.message, variant: "destructive" });

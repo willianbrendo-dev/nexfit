@@ -56,9 +56,10 @@ export async function createPixPayment(
 
     console.log("[PixTracking] Creating payment:", { paymentType, amount });
 
-    // Use Mercado Pago for subscriptions AND store plans
+    // Use Mercado Pago for automated payments
     // MP uses its own registered PIX key — no manual pix_configs needed
-    if (paymentType === 'subscription' || paymentType === 'store_plan') {
+    // Enable automated payments for subscriptions, store plans, and marketplace orders
+    if (paymentType === 'subscription' || paymentType === 'store_plan' || paymentType === 'marketplace_order') {
         try {
             const [firstName = "Cliente", lastName = "Nexfit"] = (params.userName || "").split(" ");
             const email = params.userEmail || "atendimento@nexfit.com";
@@ -75,9 +76,8 @@ export async function createPixPayment(
                 },
                 metadata: {
                     payment_type: paymentType,
-                    reference_id: referenceId || null,
+                    reference_id: referenceId || "",
                     user_id: userId,
-                    desired_plan: desiredPlan,
                 }
             });
 
@@ -107,6 +107,7 @@ export async function createPixPayment(
             throw new Error(error.message || "Falha ao criar pagamento automático. Tente novamente.");
         }
     } else {
+
         // MANUAL PIX SYSTEM - Now generating actual payloads
         try {
             // First, insert local record
@@ -264,6 +265,17 @@ async function handlePostPaymentActions(paymentId: string): Promise<void> {
                         plan_expires_at: expiresAt.toISOString(),
                     })
                     .eq("id", payment.reference_id);
+            }
+            break;
+
+        case "marketplace_order":
+            // Update marketplace order status
+            if (payment.reference_id) {
+                await supabase
+                    .from("marketplace_orders")
+                    .update({ status: "paid" })
+                    .eq("id", payment.reference_id);
+                console.log("[PixTracking] Marketplace order updated to paid:", payment.reference_id);
             }
             break;
 

@@ -20,22 +20,35 @@ const Index = () => {
 
     setChecking(true);
 
-    // Check if user is a store_owner to redirect accordingly
-    supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data?.role === "store_owner") {
-          navigate("/loja/dashboard", { replace: true });
-        } else if (data?.role === "professional") {
-          navigate("/professional/dashboard", { replace: true });
-        } else {
-          navigate("/aluno/dashboard", { replace: true });
-        }
-        setChecking(false);
-      });
+    // Check if user is a store_owner or professional to redirect accordingly
+    const checkRole = async () => {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id);
+
+      const roles = (roleData?.map(r => r.role) || []) as string[];
+      const userRole = profile?.role;
+
+      console.log("[Index] Routing user:", { userRole, roles });
+
+      if (userRole === "store_owner" || roles.includes("store_owner")) {
+        navigate("/loja/dashboard", { replace: true });
+      } else if (userRole === "professional" || roles.includes("professional")) {
+        navigate("/professional/dashboard", { replace: true });
+      } else {
+        navigate("/aluno/dashboard", { replace: true });
+      }
+      setChecking(false);
+    };
+
+    checkRole();
   }, [user, loading, navigate, checking]);
 
   return (

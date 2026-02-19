@@ -288,6 +288,7 @@ const AlunoOnboardingPage = () => {
         // ignore
       }
 
+      console.log("[Onboarding] Submission successful, proceeding to loading screen...");
       // Loading + redirecionamento (apenas depois de persistir com sucesso)
       setIsProcessing(true);
       setProcessingSummary({
@@ -298,10 +299,10 @@ const AlunoOnboardingPage = () => {
         focusGroupLabel: FOCUS_GROUPS.find((g) => g.value === values.focus_group)?.label ?? String(values.focus_group),
       });
     } catch (err: any) {
-      console.error("Onboarding error details:", err);
+      console.error("[Onboarding] Error during submission:", err);
       toast({
         title: "Erro ao salvar onboarding",
-        description: err?.message || "Tente novamente em instantes.", // Fixed ?? to || for broader fallback
+        description: err?.message || "Tente novamente em instantes.",
         variant: "destructive",
       });
     } finally {
@@ -322,10 +323,10 @@ const AlunoOnboardingPage = () => {
       focus_group: watch("focus_group"),
     };
 
-    if (!v.nome || v.nome.length < 2 || !v.genero) return 0;
-    const altura = parseFloat(String(v.altura_cm ?? ""));
-    const peso = parseFloat(String(v.peso_kg ?? ""));
-    if (!Number.isFinite(altura) || altura <= 0 || !Number.isFinite(peso) || peso <= 0) return 1;
+    if (!v.nome || v.nome.length < 2 || !v.genero || !v.whatsapp || v.whatsapp.length < 10) return 0;
+    const altura = parseFloat(String(v.altura_cm ?? "0"));
+    const peso = parseFloat(String(v.peso_kg ?? "0"));
+    if (isNaN(altura) || altura <= 0 || isNaN(peso) || peso <= 0) return 1;
     if (!v.objetivo || v.objetivo.length < 3) return 2;
     if (!v.nivel) return 3;
     if (!Array.isArray(v.training_days) || v.training_days.length < 2 || v.training_days.length > 6) return 4;

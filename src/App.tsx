@@ -232,7 +232,12 @@ const RequireOnboarding = ({ children }: { children: JSX.Element }) => {
         !!cached.training_level;
 
       setHasSoftCache(Boolean(cached));
-      if (cachedSatisfies) {
+
+      // 1. Sinal de sessionStorage: se acabamos de vir do fluxo de onboarding, confiamos cegamente.
+      const justFinished = sessionStorage.getItem(`nexfit_just_finished_onboarding_${user.id}`) === "true";
+
+      // Se temos cache VÁLIDO e COMPLETO, ou acabamos de finalizar, podemos mostrar a UI enquanto revalida.
+      if (cachedSatisfies || justFinished) {
         setChecking(false);
       }
 
@@ -242,14 +247,23 @@ const RequireOnboarding = ({ children }: { children: JSX.Element }) => {
         return;
       }
 
-      // Store owners não passam por onboarding de aluno
+      // Store owners e Profissionais não passam por onboarding de aluno
       const { data: profileData } = await supabase
         .from("profiles")
         .select("role")
         .eq("id", user.id)
         .maybeSingle();
 
-      if (profileData?.role === "store_owner" || profileData?.role === "professional") {
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id);
+
+      const roles = (roleData?.map(r => r.role) || []) as string[];
+      const userRole = profileData?.role;
+
+      if (userRole === "store_owner" || userRole === "professional" || roles.includes("store_owner") || roles.includes("professional")) {
+        console.log("[OnboardingGuard] Bypassing onboarding for role:", userRole || roles);
         setChecking(false);
         return;
       }
@@ -312,15 +326,29 @@ const RequireOnboarding = ({ children }: { children: JSX.Element }) => {
         return;
       }
 
-      // Atualiza cache local sempre que conseguir verificar online.
-      writeOnboardingCache(user.id, {
-        onboarding_completed: Boolean(data.onboarding_completed),
-        altura_cm: data.altura_cm,
-        peso_kg: data.peso_kg,
-        training_level: data.training_level ?? null,
-      });
+      // Só atualiza cache se os dados online forem válidos OU se não tivermos cache recente.
+      const isFreshVal = cached && (Date.now() - cached.cached_at < 60000);
 
-      if (needsOnboarding) {
+      if (!isFreshVal || (data && data.onboarding_completed)) {
+        writeOnboardingCache(user.id, {
+          onboarding_completed: Boolean(data?.onboarding_completed),
+          altura_cm: data?.altura_cm ?? null,
+          peso_kg: data?.peso_kg ?? null,
+          training_level: data?.training_level ?? null,
+        });
+      }
+
+      const finalNeedsOnboarding =
+        !data ||
+        !data.onboarding_completed ||
+        data.altura_cm === null ||
+        data.peso_kg === null ||
+        !data.training_level;
+
+      const justFinishedVal = sessionStorage.getItem(`nexfit_just_finished_onboarding_${user.id}`) === "true";
+
+      if (finalNeedsOnboarding && !isFreshVal && !justFinishedVal) {
+        console.log("[OnboardingGuard] Redirecionando para onboarding (online revalidation)");
         navigate("/aluno/onboarding", { replace: true });
       }
 
@@ -337,8 +365,10 @@ const RequireOnboarding = ({ children }: { children: JSX.Element }) => {
     return <div className="flex min-h-screen items-center justify-center bg-background">Carregando...</div>;
   }
 
-  // SWR: se já existe cache local de onboarding, renderiza o app e revalida em background.
-  if ((roleLoading || checking) && !hasSoftCache) {
+  // Se já existe cache COMPLETO de onboarding, renderiza o app e revalida em background.
+  // Se o cache existir mas não for satisfatório (onboarding pendente), DEVEMOS bloquear/mostrar loading
+  // para evitar o "flicker" do dashboard antes do redirecionamento para onboarding.
+  if ((roleLoading || checking) && (!hasSoftCache || !readOnboardingCache(user.id)?.onboarding_completed)) {
     return <div className="flex min-h-screen items-center justify-center bg-background">Carregando...</div>;
   }
 

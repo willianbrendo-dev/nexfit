@@ -167,18 +167,27 @@ const AuthPage = () => {
     }
 
     const checkUserRoleAndRedirect = async () => {
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+
       const { data: roleData } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", user.id);
 
-      const roles = roleData?.map(r => r.role) || [];
+      const roles = (roleData?.map(r => r.role) || []) as string[];
+      const userRole = profileData?.role;
 
-      if (roles.includes("store_owner")) {
+      console.log("[Auth] Routing user:", { userRole, roles });
+
+      if (userRole === "store_owner" || roles.includes("store_owner")) {
         navigate("/loja/dashboard", { replace: true });
-      } else if (roles.includes("professional")) {
-        // Check if professional has completed at least the first step of onboarding (name/specialty/service)
-        const { data: profData } = await supabase
+      } else if (userRole === "professional" || roles.includes("professional")) {
+        // Check if professional has completed at least the first step of onboarding
+        const { data: profData } = await (supabase as any)
           .from("professionals")
           .select("telemedicina_servico_id")
           .eq("user_id", user.id)

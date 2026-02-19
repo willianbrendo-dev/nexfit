@@ -31,6 +31,8 @@ type CreateStoreOwnerPayload = {
   storeDescription?: string;
   profileImageUrl?: string;
   bannerImageUrl?: string;
+  cnpj?: string;
+  whatsapp?: string;
 };
 
 type Payload = UpdatePayload | BanPayload | DeletePayload | CreateStoreOwnerPayload;
@@ -197,28 +199,14 @@ serve(async (req) => {
 
       if (mkError) {
         console.error("create_store_owner: marketplace_stores error", mkError);
+        return json({
+          error: `Erro ao vincular no marketplace: ${mkError.message}. Verifique as permissões e restrições da tabela marketplace_stores.`,
+          details: mkError
+        }, { status: 400 });
       }
 
       // 7. Link profile to store
       await supabaseAdmin.from("profiles").update({ store_id: store.id }).eq("id", userId);
-
-      // 8. INSERT INTO LOJAS (Legacy/Frontend Compatibility)
-      // O frontend (LojaOnboardingPage) checa a tabela 'lojas'. Se não existir, dá erro.
-      const { error: lojasError } = await supabaseAdmin.from("lojas").insert({
-        user_id: userId,
-        nome_loja: storeName,
-        cnpj: p.cnpj || null,
-        descricao: p.storeDescription || null,
-        status: "aprovado", // Admin created = approved
-        logo_url: p.profileImageUrl || null,
-        banner_url: p.bannerImageUrl || null,
-        telefone: p.whatsapp || null, // Map whatsapp to telefone for consistency
-      });
-
-      if (lojasError) {
-        console.error("create_store_owner: lojas table error", lojasError);
-        // Não falhamos a request toda, pois as tabelas novas já foram criadas, mas logamos o erro.
-      }
 
       return json({ ok: true, userId, storeId: store.id });
     }
