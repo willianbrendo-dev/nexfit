@@ -48,11 +48,14 @@ ON CONFLICT (user_id, role) DO NOTHING;
 INSERT INTO public.lojas (
     id,
     nome_loja,
+    cnpj,
     status
 ) VALUES (
     '85152abd-8bc6-4b68-abc4-003d072342e3',
     'BAR FIT',
+    '00.000.000/0001-00',
     'aprovado'
 ) ON CONFLICT (id) DO UPDATE SET
     nome_loja = EXCLUDED.nome_loja,
+    cnpj = EXCLUDED.cnpj,
     status = EXCLUDED.status;
