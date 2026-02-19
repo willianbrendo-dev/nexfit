@@ -21,8 +21,9 @@ import {
 } from "lucide-react";
 import { ProfessionalFloatingNavIsland } from "@/components/navigation/ProfessionalFloatingNavIsland";
 import { cn } from "@/lib/utils";
-import { useUserPlan } from "@/hooks/useUserPlan";
+import { useProfessionalPlanModules } from "@/hooks/useProfessionalPlanModules";
 import { Rocket } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface ChatRoom {
     id: string;
@@ -47,12 +48,16 @@ interface Message {
 export default function ProfessionalChatPage() {
     const { user } = useAuth();
     const { toast } = useToast();
+    const navigate = useNavigate();
     const [rooms, setRooms] = useState<ChatRoom[]>([]);
     const [activeRoom, setActiveRoom] = useState<ChatRoom | null>(null);
     const [messages, setMessages] = useState<Message[]>([]);
     const [newMessage, setNewMessage] = useState("");
-    const { isElite, isMaster, loading: loadingPlan } = useUserPlan();
-    const canAccessChat = true; // Always unlocked
+    const [loadingRooms, setLoadingRooms] = useState(true);
+    const [loadingMessages, setLoadingMessages] = useState(false);
+    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const { hasModule, isLoading: loadingPlan } = useProfessionalPlanModules();
+    const canAccessChat = hasModule("chat");
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {

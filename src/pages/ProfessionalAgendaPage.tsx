@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useUserPlan } from "@/hooks/useUserPlan";
+import { useProfessionalPlanModules } from "@/hooks/useProfessionalPlanModules";
 import { useToast } from "@/hooks/use-toast";
 import { ProfessionalFloatingNavIsland } from "@/components/navigation/ProfessionalFloatingNavIsland";
 import { Button } from "@/components/ui/button";
@@ -42,7 +42,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }>
 
 export default function ProfessionalAgendaPage() {
     const { user } = useAuth();
-    const { isElite, isMaster, loading: loadingPlan } = useUserPlan();
+    const { hasModule, isLoading: loadingPlan } = useProfessionalPlanModules();
     const { toast } = useToast();
     const navigate = useNavigate();
 
@@ -50,7 +50,7 @@ export default function ProfessionalAgendaPage() {
     const [hires, setHires] = useState<HireRequest[]>([]);
     const [date, setDate] = useState<Date | undefined>(new Date());
 
-    const canAccessAgenda = true; // Always unlocked
+    const canAccessAgenda = hasModule("agenda");
 
     useEffect(() => {
         if (canAccessAgenda && user) {

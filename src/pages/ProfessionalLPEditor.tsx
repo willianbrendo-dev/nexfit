@@ -2,13 +2,14 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useProfessionalPlanModules } from "@/hooks/useProfessionalPlanModules";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, ArrowLeft, Save, Image as ImageIcon, Plus, Trash2 } from "lucide-react";
+import { Loader2, ArrowLeft, Save, Image as ImageIcon, Plus, Trash2, Lock, Crown } from "lucide-react";
 
 export default function ProfessionalLPEditor() {
     const { user } = useAuth();
@@ -16,6 +17,8 @@ export default function ProfessionalLPEditor() {
     const navigate = useNavigate();
 
     const [loading, setLoading] = useState(true);
+    const { hasModule, isLoading: loadingPlan } = useProfessionalPlanModules();
+    const canAccessLP = hasModule("marketplace");
     const [saving, setSaving] = useState(false);
     const [professional, setProfessional] = useState<any>(null);
     const [formData, setFormData] = useState({
@@ -118,11 +121,33 @@ export default function ProfessionalLPEditor() {
         }
     };
 
-    if (loading) {
+    if (loading || loadingPlan) {
         return (
             <div className="flex min-h-screen items-center justify-center bg-black">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
+        );
+    }
+
+    if (!canAccessLP) {
+        return (
+            <main className="flex min-h-screen flex-col items-center justify-center gap-6 bg-black px-4 text-center">
+                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 border border-primary/20">
+                    <Lock className="h-10 w-10 text-primary" />
+                </div>
+                <div className="space-y-2">
+                    <h1 className="text-2xl font-black uppercase tracking-tighter text-white">Módulo Bloqueado</h1>
+                    <p className="text-sm text-zinc-400 max-w-xs">
+                        A edição de <strong>Landing Page</strong> não está incluída no seu plano atual.
+                    </p>
+                </div>
+                <button
+                    onClick={() => navigate("/professional/pricing")}
+                    className="flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-xs font-bold uppercase tracking-widest text-black hover:bg-primary/90 transition-colors"
+                >
+                    <Crown className="h-4 w-4" /> Ver Planos
+                </button>
+            </main>
         );
     }
 

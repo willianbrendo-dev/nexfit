@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useProfessionalPlanModules } from "@/hooks/useProfessionalPlanModules";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { DollarSign, TrendingUp, Users, Download, ArrowUpRight, Loader2, Lock, Filter, Calendar } from "lucide-react";
+import { DollarSign, TrendingUp, Users, Download, ArrowUpRight, Loader2, Lock, Filter, Calendar, Crown } from "lucide-react";
 import { ProfessionalFloatingNavIsland } from "@/components/navigation/ProfessionalFloatingNavIsland";
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -36,6 +38,10 @@ interface FinanceStats {
 export default function ProfessionalFinanceiroPage() {
     const { user } = useAuth();
     const { toast } = useToast();
+    const navigate = useNavigate();
+    const { hasModule, isLoading: isPlanLoading } = useProfessionalPlanModules();
+    const isPro = hasModule("financeiro");
+
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState<FinanceStats>({
         totalRevenue: 0,
@@ -54,8 +60,10 @@ export default function ProfessionalFinanceiroPage() {
     const [submittingWithdraw, setSubmittingWithdraw] = useState(false);
 
     useEffect(() => {
-        checkAccessAndLoadData();
-    }, [user]);
+        if (isPro) {
+            checkAccessAndLoadData();
+        }
+    }, [user, isPro]);
 
     const checkAccessAndLoadData = async () => {
         if (!user) return;
@@ -135,11 +143,34 @@ export default function ProfessionalFinanceiroPage() {
         }
     };
 
-    if (loading) {
+    if (loading || isPlanLoading) {
         return (
             <div className="flex min-h-screen items-center justify-center bg-black">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
+        );
+    }
+
+    if (!isPro) {
+        return (
+            <main className="flex min-h-screen flex-col items-center justify-center gap-6 bg-black px-4 text-center">
+                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 border border-primary/20">
+                    <Lock className="h-10 w-10 text-primary" />
+                </div>
+                <div className="space-y-2">
+                    <h1 className="text-2xl font-black uppercase tracking-tighter text-white">Módulo Bloqueado</h1>
+                    <p className="text-sm text-zinc-400 max-w-xs">
+                        O módulo <strong>Financeiro</strong> não está incluído no seu plano atual.
+                    </p>
+                </div>
+                <button
+                    onClick={() => navigate("/professional/plano")}
+                    className="flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-xs font-bold uppercase tracking-widest text-black hover:bg-primary/90 transition-colors"
+                >
+                    <Crown className="h-4 w-4" /> Ver Planos
+                </button>
+                <ProfessionalFloatingNavIsland />
+            </main>
         );
     }
 
