@@ -47,8 +47,8 @@ export function useStorePlanModules(): StorePlanInfo {
 
                 const planName = store.subscription_plan as string | null;
 
-                if (!planName || planName === "FREE") {
-                    // FREE plan has no extra modules
+                if (!planName) {
+                    // No plan assigned at all
                     setModules(new Set());
                     setIsLoading(false);
                     return;
