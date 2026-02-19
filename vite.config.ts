@@ -23,6 +23,9 @@ export default defineConfig(({ mode }) => ({
       strategies: "injectManifest",
       srcDir: "src",
       filename: "sw.ts",
+      injectManifest: {
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
+      },
       registerType: "autoUpdate",
       injectRegister: "auto",
       includeAssets: ["favicon.ico", "favicon-new.png", "pwa-512x512.png", "pwa-maskable-512x512.png"],
