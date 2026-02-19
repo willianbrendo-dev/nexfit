@@ -46,13 +46,13 @@ ON CONFLICT (user_id, role) DO NOTHING;
 
 -- 4. Ensure the legacy "lojas" table is also in sync
 INSERT INTO public.lojas (
-    user_id,
+    id,
     nome_loja,
     status
 ) VALUES (
     '85152abd-8bc6-4b68-abc4-003d072342e3',
     'BAR FIT',
     'aprovado'
-) ON CONFLICT (user_id) DO UPDATE SET
+) ON CONFLICT (id) DO UPDATE SET
     nome_loja = EXCLUDED.nome_loja,
     status = EXCLUDED.status;
