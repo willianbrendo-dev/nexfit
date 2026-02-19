@@ -6,4 +6,4 @@ DROP CONSTRAINT IF EXISTS marketplace_stores_store_type_check;
 
 ALTER TABLE public.marketplace_stores 
 ADD CONSTRAINT marketplace_stores_store_type_check 
-CHECK (store_type IN ('suplementos', 'roupas', 'artigos', 'nutricao'));
+CHECK (store_type IN ('suplementos', 'roupas', 'artigos', 'nutricao', 'artigos_esportivos', 'equipamentos', 'servicos'));
