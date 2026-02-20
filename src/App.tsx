@@ -128,18 +128,8 @@ const AlunoRoute = ({ children }: { children: JSX.Element }) => {
 
   // Store owners e Profissionais nunca devem ver rotas de aluno
   if (isStoreOwner) {
-    // Redireciona para o painel correto
-    // Se for profissional, o perfil indicou isso no useEffect inicial
-    supabase.from("profiles").select("role").eq("id", user.id).maybeSingle().then(({ data }) => {
-      if (data?.role === "professional") {
-        navigate("/professional/dashboard", { replace: true });
-      } else if (data?.role === "store_owner") {
-        navigate("/loja/dashboard", { replace: true });
-      } else {
-        navigate("/", { replace: true });
-      }
-    });
-    return <div className="flex min-h-screen items-center justify-center bg-background">Redirecionando...</div>;
+    // Redireciona para o painel correto de forma síncrona se possível ou via useEffect
+    return <Navigate to="/" replace />;
   }
 
   const isMasterAdmin = user.email === "biotreinerapp@gmail.com";
@@ -175,6 +165,21 @@ const ProfessionalRoute = ({ children }: { children: JSX.Element }) => {
   }
 
   if (!user) return <Navigate to="/auth" replace />;
+
+  return children;
+};
+
+// Componente para blindagem total de rotas
+const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <div className="flex min-h-screen items-center justify-center bg-background">Carregando...</div>;
+  }
+
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
 
   return children;
 };
@@ -343,13 +348,11 @@ const RequireOnboarding = ({ children }: { children: JSX.Element }) => {
       const finalNeedsOnboarding =
         !data ||
         !data.onboarding_completed ||
-        data.altura_cm === null ||
-        data.peso_kg === null ||
-        !data.training_level;
+        (data.altura_cm === null && data.peso_kg === null); // Simplificado para evitar falso positivo se um campo for nulo mas onboarding estiver ok
 
       const justFinishedVal = sessionStorage.getItem(`nexfit_just_finished_onboarding_${user.id}`) === "true";
 
-      if (finalNeedsOnboarding && !isFreshVal && !justFinishedVal) {
+      if (finalNeedsOnboarding && !isFreshVal && !justFinishedVal && data?.onboarding_completed !== true) {
         console.log("[OnboardingGuard] Redirecionando para onboarding (online revalidation)");
         navigate("/aluno/onboarding", { replace: true });
       }

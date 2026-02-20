@@ -355,8 +355,12 @@ const AlunoDashboardPage = () => {
     const inicio = new Date(ultima.iniciado_em);
     const fim = new Date(ultima.finalizado_em);
     const minutosUltima = Math.max(1, Math.round((fim.getTime() - inicio.getTime()) / 60000));
-    const media = minutosTotaisSemana / resumoSemanal.filter((d) => d.minutos > 0).length;
-    const variacao = ((minutosUltima - media) / (media || minutosUltima)) * 100;
+
+    const diasAtivos = resumoSemanal.filter((d) => d.minutos > 0).length;
+    if (diasAtivos === 0) return "Continue se movimentando para que a IA possa analisar seu padrão semanal.";
+
+    const media = minutosTotaisSemana / diasAtivos;
+    const variacao = ((minutosUltima - media) / (media || minutosUltima || 1)) * 100;
     const variacaoAbs = Math.abs(Math.round(variacao));
 
     if (variacao >= 5) {
@@ -668,8 +672,8 @@ const AlunoDashboardPage = () => {
               distance_km: lastSession.distance_km ?? 0,
               duration_minutes: duracaoMinutos ?? 0,
               recorded_at: lastSession.finalizado_em ?? new Date().toISOString(),
-              author_name: perfil?.nome ?? nomeAluno,
-              author_initials: (perfil?.nome || nomeAluno)?.slice(0, 2).toUpperCase(),
+              author_name: perfil?.nome || nomeAluno || "Atleta",
+              author_initials: (perfil?.nome || nomeAluno || "Atleta").slice(0, 2).toUpperCase(),
               caption: captionTextoBase,
               activity_image_url: imageUrl,
             });
@@ -709,8 +713,8 @@ const AlunoDashboardPage = () => {
         pace: lastSession.pace_avg ? `${lastSession.pace_avg} min/km` : null,
         caption: captionTextoBase,
         image_url: imageUrl,
-        author_name: perfil?.nome ?? nomeAluno,
-        author_initials: (perfil?.nome || nomeAluno)?.slice(0, 2).toUpperCase(),
+        author_name: perfil?.nome || nomeAluno || "Atleta",
+        author_initials: (perfil?.nome || nomeAluno || "Atleta").slice(0, 2).toUpperCase(),
         author_avatar_url: avatarUrl,
       });
 

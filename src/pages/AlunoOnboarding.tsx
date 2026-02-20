@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { MaskedInput } from "@/components/ui/masked-input";
 import { Label } from "@/components/ui/label";
 import OnboardingLoadingScreen from "@/components/onboarding/OnboardingLoadingScreen";
 import {
@@ -23,7 +24,8 @@ import {
   ChevronRight,
   ChevronLeft,
   Calendar,
-  Dumbbell
+  Dumbbell,
+  LogOut
 } from "lucide-react";
 import { BackIconButton } from "@/components/navigation/BackIconButton";
 import { cn } from "@/lib/utils";
@@ -253,6 +255,9 @@ const AlunoOnboardingPage = () => {
 
       const fullName = values.sobrenome ? `${values.nome} ${values.sobrenome}`.trim() : values.nome.trim();
 
+      // Ensure WhatsApp is unmasked before saving if needed, but the current implementation saves the masked string.
+      // Based on previous patterns, we save the masked string for display consistency.
+
       const payload = {
         display_name: values.nome.trim(),
         nome: fullName,
@@ -480,12 +485,14 @@ const AlunoOnboardingPage = () => {
               <div className="space-y-2">
                 <Label htmlFor="whatsapp" className="text-[10px] font-black uppercase tracking-widest text-primary/60 ml-1 block mb-2">Contato</Label>
                 <div className="relative">
-                  <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-primary" />
-                  <Input
+                  <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-primary z-10" />
+                  <MaskedInput
                     id="whatsapp"
-                    placeholder="WhatsApp (ex: 11999999999)"
+                    mask="phone"
+                    placeholder="WhatsApp (ex: 11 99999-9999)"
                     className="h-14 pl-12 rounded-2xl border-white/10 bg-white/5 focus:bg-white/10 transition-all font-medium"
-                    {...register("whatsapp")}
+                    value={watch("whatsapp") || ""}
+                    onChange={(e) => setValue("whatsapp", e.target.value, { shouldValidate: true })}
                   />
                 </div>
                 {errors.whatsapp && <p className="text-[10px] font-bold text-destructive uppercase tracking-tight ml-1">{errors.whatsapp.message}</p>}
@@ -712,11 +719,33 @@ const AlunoOnboardingPage = () => {
                 type="button"
                 variant="outline"
                 className="h-16 rounded-3xl border-white/5 bg-white/5 text-[10px] font-black uppercase tracking-widest hover:bg-white/10"
-                disabled={currentStep === 0}
-                onClick={() => setCurrentStep((prev) => Math.max(prev - 1, 0))}
+                disabled={currentStep === 0 && isSaving}
+                onClick={() => {
+                  if (currentStep === 0) {
+                    // Reset session and back to login
+                    supabase.auth.signOut().then(() => {
+                      if (typeof window !== "undefined") {
+                        window.localStorage.removeItem(`biotreiner_onboarding_${user?.id}`);
+                        window.localStorage.removeItem(`biotreiner_onboarding_cache_${user?.id}`);
+                      }
+                      navigate("/auth", { replace: true });
+                    });
+                  } else {
+                    setCurrentStep((prev) => Math.max(prev - 1, 0));
+                  }
+                }}
               >
-                <ChevronLeft className="mr-2 h-4 w-4" />
-                Voltar
+                {currentStep === 0 ? (
+                  <>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sair
+                  </>
+                ) : (
+                  <>
+                    <ChevronLeft className="mr-2 h-4 w-4" />
+                    Voltar
+                  </>
+                )}
               </Button>
 
               {currentStep < steps.length - 1 ? (

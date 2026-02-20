@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MaskedInput } from "@/components/ui/masked-input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -446,11 +447,14 @@ const AlunoEditarPerfilPage = () => {
                   <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">WhatsApp (Compras)</FormLabel>
                   <FormControl>
                     <div className="relative group">
-                      <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-primary transition-colors group-focus-within:text-white" />
-                      <Input
-                        placeholder="Ex: 11999999999"
+                      <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-primary transition-colors group-focus-within:text-white z-10" />
+                      <MaskedInput
+                        id="whatsapp"
+                        mask="phone"
+                        placeholder="Ex: 11 99999-9999"
                         className="h-14 pl-12 rounded-2xl border-white/10 bg-white/5 focus:bg-white/10 focus:border-primary/50 transition-all font-medium"
-                        {...field}
+                        value={field.value || ""}
+                        onChange={field.onChange}
                       />
                     </div>
                   </FormControl>

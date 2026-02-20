@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MaskedInput } from "@/components/ui/masked-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -312,9 +313,9 @@ export default function ProfessionalRegistrationPage() {
 
                             <div>
                                 <Label htmlFor="phone" className="text-white">Telefone/WhatsApp</Label>
-                                <Input
+                                <MaskedInput
                                     id="phone"
-                                    type="tel"
+                                    mask="phone"
                                     value={formData.phone}
                                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                                     className="bg-white/10 text-white"
