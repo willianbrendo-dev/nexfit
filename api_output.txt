@@ -1,6 +1,0 @@
-Fetching from https://musclewiki-api.p.rapidapi.com/exercises?limit=50...
-Status Code: 200
-Received object keys: [ 'total', 'limit', 'offset', 'count', 'results' ]
-Results count: 50
-First item keys: [ 'id', 'name' ]
-First item full: {"id":0,"name":"Barbell Curl"}
